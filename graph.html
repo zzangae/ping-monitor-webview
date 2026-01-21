@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Monitor - Network Graph</title>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --bg-card-hover: #1f2937;
+            --border-color: #2d3748;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-green: #10b981;
+            --accent-green-glow: rgba(16, 185, 129, 0.3);
+            --accent-red: #ef4444;
+            --accent-red-glow: rgba(239, 68, 68, 0.3);
+            --accent-yellow: #f59e0b;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* 배경 효과 */
+        .bg-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        /* 헤더 */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header-left h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header-left h1 .icon {
+            font-size: 2.2rem;
+        }
+        
+        .header-left p {
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+        
+        .header-right {
+            text-align: right;
+        }
+        
+        .current-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .current-date {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 2px;
+        }
+        
+        /* 상태 표시 */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.stopped {
+            background: var(--accent-red);
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+        }
+        
+        .status-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .elapsed-time {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-blue);
+        }
+        
+        /* 컨트롤 버튼 */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-left: auto;
+        }
+        
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-start {
+            background: var(--accent-green);
+            color: white;
+        }
+        
+        .btn-start:hover {
+            background: #059669;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--accent-green-glow);
+        }
+        
+        .btn-stop {
+            background: var(--accent-red);
+            color: white;
+        }
+        
+        .btn-stop:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--accent-red-glow);
+        }
+        
+        /* 요약 카드 */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-blue);
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.1);
+        }
+        
+        .summary-card.online {
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+        
+        .summary-card.offline {
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        
+        .summary-icon {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+        
+        .summary-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .summary-card.online .summary-value { color: var(--accent-green); }
+        .summary-card.offline .summary-value { color: var(--accent-red); }
+        .summary-card .summary-value.latency { color: var(--accent-yellow); }
+        .summary-card .summary-value.loss { color: var(--accent-purple); }
+        
+        .summary-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        /* 비교 그래프 섹션 */
+        .comparison-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title .icon {
+            font-size: 1.3rem;
+        }
+        
+        .chart-container {
+            height: 200px;
+            position: relative;
+        }
+        
+        /* 범례 */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 16px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        
+        /* IP 카드 그리드 */
+        .ip-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px;
+        }
+        
+        .ip-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .ip-card:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 8px 32px rgba(59, 130, 246, 0.1);
+        }
+        
+        .ip-card.online {
+            border-left: 4px solid var(--accent-green);
+        }
+        
+        .ip-card.offline {
+            border-left: 4px solid var(--accent-red);
+        }
+        
+        .ip-card.ready {
+            border-left: 4px solid var(--text-muted);
+        }
+        
+        .ip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        
+        .ip-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .ip-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .ip-status-dot.online {
+            background: var(--accent-green);
+            box-shadow: 0 0 12px var(--accent-green-glow);
+            animation: pulse 2s infinite;
+        }
+        
+        .ip-status-dot.offline {
+            background: var(--accent-red);
+            box-shadow: 0 0 12px var(--accent-red-glow);
+        }
+        
+        .ip-status-dot.ready {
+            background: var(--text-muted);
+        }
+        
+        .ip-details h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .ip-details .ip-address {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .ip-latency {
+            text-align: right;
+        }
+        
+        .ip-latency .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        
+        .ip-latency .value.online { color: var(--accent-green); }
+        .ip-latency .value.offline { color: var(--accent-red); }
+        .ip-latency .value.ready { color: var(--text-muted); }
+        
+        .ip-latency .unit {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-left: 2px;
+        }
+        
+        .ip-latency .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        /* 개별 그래프 */
+        .ip-chart {
+            height: 100px;
+            margin-bottom: 12px;
+        }
+        
+        /* 패킷 히트맵 */
+        .packet-heatmap {
+            margin-bottom: 12px;
+        }
+        
+        .packet-heatmap-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        
+        .packet-bars {
+            display: flex;
+            gap: 2px;
+            overflow: hidden;
+        }
+        
+        .packet-bar {
+            width: 4px;
+            height: 20px;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .packet-bar.ok { background: var(--accent-green); }
+        .packet-bar.high { background: var(--accent-yellow); }
+        .packet-bar.timeout { background: var(--accent-red); }
+        .packet-bar.empty { background: var(--border-color); }
+        
+        /* 통계 바 */
+        .ip-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        
+        .stat-item {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 10px 8px;
+            text-align: center;
+        }
+        
+        .stat-item .label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-item .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        
+        .stat-item .value.min { color: var(--accent-green); }
+        .stat-item .value.max { color: var(--accent-yellow); }
+        .stat-item .value.avg { color: var(--accent-blue); }
+        .stat-item .value.loss { color: var(--accent-red); }
+        
+        /* 푸터 */
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .footer p {
+            margin: 4px 0;
+        }
+        
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .ip-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+            
+            .header-right {
+                text-align: center;
+            }
+            
+            .status-bar {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .controls {
+                margin-left: 0;
+            }
+        }
+        
+        /* 로딩 애니메이션 */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            gap: 20px;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-effect"></div>
+    
+    <div class="container" id="app">
+        <!-- 로딩 화면 -->
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">데이터 로딩 중...</p>
+            <p class="loading-text" style="font-size: 0.8rem;">ping_data.json 파일을 확인하세요</p>
+        </div>
+        
+        <!-- 메인 컨텐츠 (숨김) -->
+        <div id="main-content" style="display: none;">
+            <!-- 헤더 -->
+            <header class="header">
+                <div class="header-left">
+                    <h1><span class="icon">🌐</span> Ping Monitor</h1>
+                    <p>실시간 네트워크 모니터링 대시보드</p>
+                </div>
+                <div class="header-right">
+                    <div class="current-time" id="current-time">00:00:00</div>
+                    <div class="current-date" id="current-date">2026년 1월 21일 수요일</div>
+                </div>
+            </header>
+            
+            <!-- 상태 바 -->
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span class="status-text" id="status-text">대기 중</span>
+                </div>
+                <div class="status-indicator">
+                    <span>⏱️</span>
+                    <span class="elapsed-time" id="elapsed-time">00:00:00</span>
+                    <span style="color: var(--text-muted)">/</span>
+                    <span class="elapsed-time" id="total-time">00:00:00</span>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-start" id="btn-start" onclick="toggleMonitoring()">
+                        ▶️ 시작
+                    </button>
+                    <button class="btn btn-stop" id="btn-stop" onclick="toggleMonitoring()">
+                        ⏹️ 중지
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 요약 카드 -->
+            <div class="summary-grid">
+                <div class="summary-card online">
+                    <div class="summary-icon">✅</div>
+                    <div class="summary-value" id="online-count">0</div>
+                    <div class="summary-label">온라인</div>
+                </div>
+                <div class="summary-card offline">
+                    <div class="summary-icon">❌</div>
+                    <div class="summary-value" id="offline-count">0</div>
+                    <div class="summary-label">오프라인</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">⚡</div>
+                    <div class="summary-value latency" id="avg-latency">0<span style="font-size: 1rem">ms</span></div>
+                    <div class="summary-label">평균 지연</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon">📉</div>
+                    <div class="summary-value loss" id="total-loss">0<span style="font-size: 1rem">%</span></div>
+                    <div class="summary-label">패킷 손실률</div>
+                </div>
+            </div>
+            
+            <!-- 비교 그래프 -->
+            <div class="comparison-section">
+                <h2 class="section-title"><span class="icon">📈</span> IP 비교 타임라인</h2>
+                <div class="chart-container">
+                    <canvas id="comparison-chart"></canvas>
+                </div>
+                <div class="legend" id="comparison-legend"></div>
+            </div>
+            
+            <!-- IP 카드 그리드 -->
+            <div class="ip-grid" id="ip-grid">
+                <!-- 동적으로 생성됨 -->
+            </div>
+            
+            <!-- 푸터 -->
+            <footer class="footer">
+                <p>🔄 데이터는 1초마다 자동 업데이트됩니다</p>
+                <p>💡 F5: 시작/중지 | ESC: 중지</p>
+            </footer>
+        </div>
+    </div>
+    
+    <script>
+        // 전역 변수
+        let comparisonChart = null;
+        let ipCharts = {};
+        let chartColors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+        let lastData = null;
+        let dataLoadAttempts = 0;
+        
+        // 시간 포맷팅
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        // 현재 시간 업데이트
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('ko-KR');
+            document.getElementById('current-date').textContent = now.toLocaleDateString('ko-KR', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+        }
+        
+        // 비교 차트 초기화
+        function initComparisonChart() {
+            const ctx = document.getElementById('comparison-chart').getContext('2d');
+            comparisonChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            borderColor: '#475569',
+                            borderWidth: 1,
+                            titleColor: '#f8fafc',
+                            bodyColor: '#94a3b8',
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.raw === null || context.raw === -1) {
+                                        return context.dataset.label + ': TIMEOUT';
+                                    }
+                                    return context.dataset.label + ': ' + context.raw + 'ms';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: {
+                                color: '#1e293b'
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            display: true,
+                            beginAtZero: true,
+                            suggestedMax: 100,
+                            grid: {
+                                color: '#1e293b'
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                callback: function(value) {
+                                    return value + 'ms';
+                                }
+                            }
+                        }
+                    },
+                    animation: false,
+                    elements: {
+                        point: {
+                            radius: 0,
+                            hoverRadius: 4
+                        },
+                        line: {
+                            tension: 0.3,
+                            borderWidth: 2
+                        }
+                    }
+                }
+            });
+        }
+        
+        // IP 카드 생성
+        function createIPCard(target, index) {
+            const statusClass = target.online === 1 ? 'online' : (target.online === 0 ? 'offline' : 'ready');
+            const latencyClass = target.online === 1 ? 'online' : (target.online === 0 ? 'offline' : 'ready');
+            const latencyValue = target.online === 1 ? target.latency : (target.online === 0 ? 'TIMEOUT' : '-');
+            
+            const lossRate = target.total > 0 ? ((target.total - target.success) / target.total * 100).toFixed(1) : 0;
+            
+            return `
+                <div class="ip-card ${statusClass}" id="ip-card-${index}">
+                    <div class="ip-header">
+                        <div class="ip-info">
+                            <div class="ip-status-dot ${statusClass}"></div>
+                            <div class="ip-details">
+                                <h3>${target.name}</h3>
+                                <span class="ip-address">${target.ip}</span>
+                            </div>
+                        </div>
+                        <div class="ip-latency">
+                            <span class="value ${latencyClass}">${latencyValue}</span>
+                            ${target.online === 1 ? '<span class="unit">ms</span>' : ''}
+                            <div class="label">${target.online === 1 ? '응답 시간' : (target.online === 0 ? '연결 실패' : '대기 중')}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="ip-chart">
+                        <canvas id="chart-${index}"></canvas>
+                    </div>
+                    
+                    <div class="packet-heatmap">
+                        <div class="packet-heatmap-label">최근 60초 패킷 상태</div>
+                        <div class="packet-bars" id="packets-${index}">
+                            ${generatePacketBars(target.history || [])}
+                        </div>
+                    </div>
+                    
+                    <div class="ip-stats">
+                        <div class="stat-item">
+                            <div class="label">최소</div>
+                            <div class="value min">${target.min || 0}ms</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">최대</div>
+                            <div class="value max">${target.max || 0}ms</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">평균</div>
+                            <div class="value avg">${(target.avg || 0).toFixed(1)}ms</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">손실</div>
+                            <div class="value loss">${lossRate}%</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 패킷 바 생성
+        function generatePacketBars(history) {
+            let bars = '';
+            const maxBars = 60;
+            
+            for (let i = 0; i < maxBars; i++) {
+                if (i < history.length) {
+                    const latency = history[i];
+                    let barClass = 'empty';
+                    if (latency === -1) {
+                        barClass = 'timeout';
+                    } else if (latency > 100) {
+                        barClass = 'high';
+                    } else if (latency >= 0) {
+                        barClass = 'ok';
+                    }
+                    bars += `<div class="packet-bar ${barClass}"></div>`;
+                } else {
+                    bars += `<div class="packet-bar empty"></div>`;
+                }
+            }
+            
+            return bars;
+        }
+        
+        // 개별 IP 차트 초기화
+        function initIPChart(index, target) {
+            const ctx = document.getElementById(`chart-${index}`);
+            if (!ctx) return;
+            
+            const color = chartColors[index % chartColors.length];
+            
+            ipCharts[index] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 60}, (_, i) => i),
+                    datasets: [{
+                        data: target.history || [],
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            display: true,
+                            beginAtZero: true,
+                            suggestedMax: 100,
+                            grid: { color: '#1e293b' },
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 9 },
+                                maxTicksLimit: 3
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 범례 생성
+        function createLegend(targets) {
+            const legend = document.getElementById('comparison-legend');
+            legend.innerHTML = targets.map((t, i) => `
+                <div class="legend-item">
+                    <div class="legend-color" style="background: ${chartColors[i % chartColors.length]}"></div>
+                    <span>${t.name}</span>
+                </div>
+            `).join('');
+        }
+        
+        // 데이터 업데이트
+        function updateUI(data) {
+            // 상태 업데이트
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            if (data.running) {
+                statusDot.classList.remove('stopped');
+                statusText.textContent = '모니터링 중';
+            } else {
+                statusDot.classList.add('stopped');
+                statusText.textContent = '중지됨';
+            }
+            
+            // 시간 업데이트
+            document.getElementById('elapsed-time').textContent = formatTime(data.elapsed);
+            document.getElementById('total-time').textContent = data.loop ? '∞' : formatTime(data.total);
+            
+            // 요약 통계
+            let onlineCount = 0;
+            let offlineCount = 0;
+            let totalLatency = 0;
+            let latencyCount = 0;
+            let totalPings = 0;
+            let successPings = 0;
+            
+            data.targets.forEach(t => {
+                if (t.online === 1) {
+                    onlineCount++;
+                    totalLatency += t.latency;
+                    latencyCount++;
+                } else if (t.online === 0) {
+                    offlineCount++;
+                }
+                totalPings += t.total;
+                successPings += t.success;
+            });
+            
+            document.getElementById('online-count').textContent = onlineCount;
+            document.getElementById('offline-count').textContent = offlineCount;
+            document.getElementById('avg-latency').innerHTML = 
+                (latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0) + '<span style="font-size: 1rem">ms</span>';
+            
+            const lossRate = totalPings > 0 ? ((totalPings - successPings) / totalPings * 100).toFixed(1) : 0;
+            document.getElementById('total-loss').innerHTML = lossRate + '<span style="font-size: 1rem">%</span>';
+            
+            // IP 카드 업데이트
+            const ipGrid = document.getElementById('ip-grid');
+            
+            // 새로 생성 필요 여부 확인
+            if (!lastData || lastData.targets.length !== data.targets.length) {
+                ipGrid.innerHTML = data.targets.map((t, i) => createIPCard(t, i)).join('');
+                
+                // 개별 차트 초기화
+                data.targets.forEach((t, i) => {
+                    initIPChart(i, t);
+                });
+                
+                // 범례 생성
+                createLegend(data.targets);
+            } else {
+                // 기존 카드 업데이트
+                data.targets.forEach((target, index) => {
+                    const card = document.getElementById(`ip-card-${index}`);
+                    if (card) {
+                        // 상태 클래스 업데이트
+                        card.className = `ip-card ${target.online === 1 ? 'online' : (target.online === 0 ? 'offline' : 'ready')}`;
+                        
+                        // 패킷 바 업데이트
+                        const packets = document.getElementById(`packets-${index}`);
+                        if (packets) {
+                            packets.innerHTML = generatePacketBars(target.history || []);
+                        }
+                        
+                        // 차트 업데이트
+                        if (ipCharts[index]) {
+                            const validHistory = (target.history || []).map(h => h === -1 ? null : h);
+                            ipCharts[index].data.datasets[0].data = validHistory;
+                            ipCharts[index].update('none');
+                        }
+                    }
+                });
+            }
+            
+            // 비교 차트 업데이트
+            updateComparisonChart(data.targets);
+            
+            lastData = data;
+        }
+        
+        // 비교 차트 업데이트
+        function updateComparisonChart(targets) {
+            if (!comparisonChart) return;
+            
+            // 라벨 생성 (최근 60초)
+            const labels = Array.from({length: 60}, (_, i) => {
+                const sec = 60 - i;
+                return sec % 10 === 0 ? `-${sec}s` : '';
+            });
+            
+            // 데이터셋 생성
+            const datasets = targets.map((t, i) => ({
+                label: t.name,
+                data: (t.history || []).map(h => h === -1 ? null : h),
+                borderColor: chartColors[i % chartColors.length],
+                backgroundColor: chartColors[i % chartColors.length] + '10',
+                fill: false
+            }));
+            
+            // Y축 최대값 계산 (최대값 + 20%, 최소 50ms)
+            let maxLatency = 50;
+            targets.forEach(t => {
+                if (t.max && t.max > maxLatency) maxLatency = t.max;
+            });
+            const yMax = Math.ceil(maxLatency * 1.2 / 10) * 10;  // 10단위로 반올림
+            
+            comparisonChart.options.scales.y.suggestedMax = yMax;
+            comparisonChart.data.labels = labels;
+            comparisonChart.data.datasets = datasets;
+            comparisonChart.update('none');
+        }
+        
+        // 데이터 로드
+        async function loadData() {
+            try {
+                // 캐시 방지를 위한 타임스탬프 추가
+                const response = await fetch(`ping_data.json?t=${Date.now()}`);
+                
+                if (!response.ok) {
+                    throw new Error('데이터 파일을 찾을 수 없습니다');
+                }
+                
+                const data = await response.json();
+                
+                // 로딩 화면 숨기기
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                
+                updateUI(data);
+                dataLoadAttempts = 0;
+                
+            } catch (error) {
+                dataLoadAttempts++;
+                console.log('데이터 로드 시도:', dataLoadAttempts, error.message);
+                
+                // 5번 이상 실패하면 데모 모드로 전환
+                if (dataLoadAttempts >= 5) {
+                    loadDemoData();
+                }
+            }
+        }
+        
+        // 데모 데이터 (C 프로그램 없이 테스트용)
+        function loadDemoData() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            
+            const demoTargets = [
+                { ip: '8.8.8.8', name: 'Google DNS', latency: 15, online: 1, total: 100, success: 97, min: 12, max: 45, avg: 18, history: [] },
+                { ip: '1.1.1.1', name: 'Cloudflare', latency: 12, online: 1, total: 100, success: 99, min: 10, max: 35, avg: 14, history: [] },
+                { ip: '168.126.63.1', name: 'KT DNS', latency: 8, online: 1, total: 100, success: 98, min: 5, max: 25, avg: 9, history: [] },
+                { ip: '192.168.1.1', name: 'Gateway', latency: -1, online: 0, total: 100, success: 85, min: 1, max: 10, avg: 3, history: [] }
+            ];
+            
+            // 히스토리 생성
+            demoTargets.forEach(t => {
+                for (let i = 0; i < 60; i++) {
+                    if (Math.random() < 0.1) {
+                        t.history.push(-1);
+                    } else {
+                        t.history.push(Math.floor(t.avg + (Math.random() - 0.5) * 20));
+                    }
+                }
+            });
+            
+            const demoData = {
+                running: true,
+                elapsed: Math.floor(Math.random() * 300),
+                total: 600,
+                loop: false,
+                targets: demoTargets
+            };
+            
+            updateUI(demoData);
+            
+            // 데모 모드에서도 계속 업데이트
+            setInterval(() => {
+                demoData.elapsed++;
+                demoData.targets.forEach(t => {
+                    // 히스토리 시프트
+                    t.history.shift();
+                    
+                    // 새 데이터 추가
+                    if (Math.random() < 0.08) {
+                        t.latency = -1;
+                        t.online = 0;
+                        t.history.push(-1);
+                    } else {
+                        t.latency = Math.floor(t.avg + (Math.random() - 0.5) * 30);
+                        t.online = 1;
+                        t.history.push(t.latency);
+                        t.success++;
+                    }
+                    t.total++;
+                });
+                
+                updateUI(demoData);
+            }, 1000);
+        }
+        
+        // 모니터링 토글 (그래프 업데이트 시작/중지)
+        let isMonitoring = true;
+        let loadInterval = null;
+        
+        function toggleMonitoring() {
+            isMonitoring = !isMonitoring;
+            
+            const btnStart = document.getElementById('btn-start');
+            const btnStop = document.getElementById('btn-stop');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            
+            if (isMonitoring) {
+                // 시작
+                btnStart.style.display = 'none';
+                btnStop.style.display = 'flex';
+                statusDot.classList.remove('stopped');
+                statusText.textContent = '모니터링 중';
+                loadData();
+                loadInterval = setInterval(loadData, 1000);
+            } else {
+                // 중지
+                btnStart.style.display = 'flex';
+                btnStop.style.display = 'none';
+                statusDot.classList.add('stopped');
+                statusText.textContent = '일시 정지';
+                if (loadInterval) {
+                    clearInterval(loadInterval);
+                    loadInterval = null;
+                }
+            }
+        }
+        
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            initComparisonChart();
+            updateCurrentTime();
+            
+            // 현재 시간 업데이트 (1초마다)
+            setInterval(updateCurrentTime, 1000);
+            
+            // 버튼 초기 상태 (시작 버튼 숨김, 중지 버튼 표시)
+            document.getElementById('btn-start').style.display = 'none';
+            document.getElementById('btn-stop').style.display = 'flex';
+            
+            // 데이터 로드 (1초마다)
+            loadData();
+            loadInterval = setInterval(loadData, 1000);
+        });
+    </script>
+</body>
+</html>
