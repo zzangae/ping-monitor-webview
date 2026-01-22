@@ -14,9 +14,12 @@
 </head>
 <body>
     <!-- Header -->
-    <div class="header">
+    <div class="header" id="mainHeader">
         <h1>🌐 Ping Monitor Dashboard</h1>
         <div class="header-subtitle">Real-time Network Monitoring</div>
+        <button class="header-toggle" id="headerToggle" title="헤더 최소화/확대">
+            <span id="toggleIcon">▲</span>
+        </button>
     </div>
 
     <!-- Tab Navigation -->
@@ -28,31 +31,61 @@
 
         <!-- Dashboard Tab -->
         <div class="tab-content active" id="dashboard">
-            <!-- Control Panel -->
-            <div class="card">
-                <div class="control-panel">
-                    <button class="btn btn-primary" id="toggleBtn">일시정지</button>
-                    <button class="btn btn-success" id="refreshBtn">새로고침</button>
+            <!-- Unified Control Bar -->
+            <div class="unified-control-bar">
+                <!-- Time Info -->
+                <div class="control-group">
+                    <div class="time-display">
+                        <div class="time-label">현재 시간</div>
+                        <div class="time-value large" id="currentTime">00:00:00</div>
+                    </div>
+                    <div class="time-display">
+                        <div class="time-label">현재 날짜</div>
+                        <div class="time-value" id="currentDate">0000-00-00</div>
+                    </div>
+                    <div class="time-display">
+                        <div class="time-label">모니터링 시간</div>
+                        <div class="time-value" id="uptime">00:00:00</div>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Global Stats -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">전체 IP</div>
-                    <div class="stat-value" id="totalIPs">0</div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Tab & Control Buttons -->
+                <div class="control-group">
+                    <button type="button" class="btn btn-primary" id="toggleBtn">일시정지</button>
+                    <button type="button" class="btn btn-success" id="refreshBtn">새로고침</button>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">온라인</div>
-                    <div class="stat-value" style="color: var(--success);" id="onlineCount">0</div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Stats -->
+                <div class="control-group" style="flex: 1; justify-content: space-around;">
+                    <div class="stat-item-inline">
+                        <div class="stat-label">전체 IP</div>
+                        <div class="stat-value" id="totalIPs">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">온라인</div>
+                        <div class="stat-value" style="color: var(--success);" id="onlineCount">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">오프라인</div>
+                        <div class="stat-value" style="color: var(--error);" id="offlineCount">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">평균 지연</div>
+                        <div class="stat-value" id="avgLatency">0</div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">오프라인</div>
-                    <div class="stat-value" style="color: var(--error);" id="offlineCount">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">평균 지연</div>
-                    <div class="stat-value" id="avgLatency">0</div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Sort Controls -->
+                <div class="control-group">
+                    <button class="card-sort-btn" id="sortByName">이름순</button>
+                    <button class="card-sort-btn" id="sortByLatency">지연순</button>
+                    <button class="card-sort-btn" id="sortByStatus">상태순</button>
                 </div>
             </div>
 
@@ -64,6 +97,15 @@
                 <div class="chart-container" style="height: 300px;">
                     <canvas id="comparisonChart"></canvas>
                 </div>
+            </div>
+
+            <!-- Minimized Cards Area -->
+            <div id="minimizedCardsArea" class="minimized-cards-area" style="display: none;">
+                <div class="minimized-area-header">
+                    <span class="minimized-area-title">📦 최소화된 IP</span>
+                    <span class="minimized-count" id="minimizedCount">0</span>
+                </div>
+                <div id="minimizedCardsContainer" class="minimized-cards-container"></div>
             </div>
 
             <!-- IP Cards -->
@@ -107,39 +149,337 @@
         </div>
     </div>
 
+    <!-- Detail Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="modalTitle">IP 상세 정보</h2>
+                    <p id="modalSubtitle" style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;"></p>
+                </div>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Stats -->
+                <div class="modal-stats">
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">현재 지연시간</div>
+                        <div class="modal-stat-value" id="modalLatency">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">최소</div>
+                        <div class="modal-stat-value" style="color: var(--success);" id="modalMin">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">평균</div>
+                        <div class="modal-stat-value" style="color: var(--info);" id="modalAvg">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">최대</div>
+                        <div class="modal-stat-value" style="color: var(--error);" id="modalMax">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">패킷 손실률</div>
+                        <div class="modal-stat-value" id="modalLoss">0%</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">상태</div>
+                        <div class="modal-stat-value" id="modalStatus">오프라인</div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="modal-chart-container">
+                    <canvas id="modalChart"></canvas>
+                </div>
+
+                <!-- Details -->
+                <div class="modal-details">
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">총 요청</div>
+                        <div class="modal-detail-value" id="modalTotal">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">성공</div>
+                        <div class="modal-detail-value" style="color: var(--success);" id="modalSuccess">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">실패</div>
+                        <div class="modal-detail-value" style="color: var(--error);" id="modalFailed">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">마지막 응답 시간</div>
+                        <div class="modal-detail-value" id="modalLastResponse">--:--:--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         // Global State
         let isRunning = true;
         let updateInterval;
+        let timeInterval;
         let comparisonChart;
         let ipCharts = {};
         let currentData = null;
+        let draggedElement = null;
+        let draggedIndex = null;
+        let startTime = Date.now();
+        let pausedElapsed = 0;  // 일시정지된 경과 시간
+        let pausedTime = 0;     // 일시정지 시작 시간
+        let modalChart = null;
+        let currentModalTarget = null;
         
         // Notification State
         let allNotifications = [];
         let currentFilter = 'all';
 
-        // Tab Switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const tabName = btn.dataset.tab;
-                
-                // Update buttons
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                
-                // Update content
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.remove('active');
-                });
-                document.getElementById(tabName).classList.add('active');
-                
-                // Load notifications when switching to that tab
-                if (tabName === 'notifications') {
-                    loadNotifications();
-                }
-            });
+        // Bright Colors for Charts
+        const brightColors = [
+            '#FF6B9D', '#C44569', '#FFA07A', '#FF8C42',
+            '#FFD93D', '#6BCF7F', '#4ECDC4', '#45B7D1',
+            '#5F27CD', '#A55EEA', '#FF6348', '#FF9FF3',
+            '#54A0FF', '#48DBFB', '#1DD1A1', '#00D2D3',
+            '#FD79A8', '#FDCB6E', '#6C5CE7', '#A29BFE',
+            '#74B9FF', '#81ECEC', '#55EFC4', '#FFEAA7'
+        ];
+
+        // DOM이 준비된 후 실행
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드 완료');
+            
+            // Initialize event listeners
+            initializeEventListeners();
+            
+            // Initialize charts and data
+            initComparisonChart();
+            loadData();
+            startUpdates();
+            
+            // Start time updates
+            updateTime();
+            timeInterval = setInterval(updateTime, 1000);
         });
+
+        function initializeEventListeners() {
+            // Header Toggle
+            const headerToggle = document.getElementById('headerToggle');
+            if (headerToggle) {
+                headerToggle.addEventListener('click', () => {
+                    const header = document.getElementById('mainHeader');
+                    const icon = document.getElementById('toggleIcon');
+                    header.classList.toggle('collapsed');
+                    icon.textContent = header.classList.contains('collapsed') ? '▼' : '▲';
+                });
+            }
+
+            // Control Buttons
+            const toggleBtn = document.getElementById('toggleBtn');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    isRunning = !isRunning;
+                    toggleBtn.textContent = isRunning ? '일시정지' : '시작';
+                    toggleBtn.className = isRunning ? 'btn btn-primary' : 'btn btn-success';
+                    
+                    if (isRunning) {
+                        // 재개: 데이터 업데이트 시작
+                        startUpdates();
+                        
+                        // 일시정지된 시간만큼 startTime 조정
+                        if (pausedTime > 0) {
+                            const pauseDuration = Date.now() - pausedTime;
+                            startTime += pauseDuration;
+                            pausedTime = 0;
+                        }
+                    } else {
+                        // 일시정지: 데이터 업데이트만 중지
+                        stopUpdates();
+                        
+                        // 일시정지 시작 시간 기록
+                        pausedTime = Date.now();
+                    }
+                    
+                    console.log('일시정지:', isRunning ? '실행' : '정지');
+                });
+            }
+
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                console.log('새로고침 버튼 이벤트 리스너 등록됨');
+                refreshBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔄 새로고침 버튼 클릭됨!');
+                    const originalText = refreshBtn.textContent;
+                    
+                    try {
+                        refreshBtn.textContent = '새로고침 중...';
+                        refreshBtn.disabled = true;
+                        console.log('데이터 로드 시작...');
+                        
+                        // 모니터링 시간 초기화
+                        startTime = Date.now();
+                        pausedTime = 0;
+                        pausedElapsed = 0;
+                        console.log('모니터링 시간 초기화');
+                        
+                        // 즉시 시간 업데이트
+                        updateTime();
+                        
+                        // 기존 차트 모두 초기화
+                        if (comparisonChart) {
+                            comparisonChart.data.labels = [];
+                            comparisonChart.data.datasets = [];
+                            comparisonChart.update();
+                            console.log('비교 차트 초기화');
+                        }
+                        
+                        // IP 차트들 초기화
+                        Object.keys(ipCharts).forEach(key => {
+                            if (ipCharts[key]) {
+                                ipCharts[key].destroy();
+                            }
+                        });
+                        ipCharts = {};
+                        console.log('IP 차트들 초기화');
+                        
+                        // IP 카드 컨테이너 완전히 비우기
+                        const ipCardsContainer = document.getElementById('ipCardsContainer');
+                        if (ipCardsContainer) {
+                            ipCardsContainer.innerHTML = '';
+                            console.log('IP 카드 컨테이너 초기화');
+                        }
+                        
+                        // 최소화 영역도 초기화
+                        const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+                        if (minimizedCardsContainer) {
+                            minimizedCardsContainer.innerHTML = '';
+                        }
+                        const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+                        if (minimizedCardsArea) {
+                            minimizedCardsArea.style.display = 'none';
+                        }
+                        console.log('최소화 영역 초기화');
+                        
+                        // 데이터 로드 (IP 카드들이 새로 생성됨)
+                        await loadData();
+                        console.log('데이터 로드 완료');
+                        
+                        // 알림 탭이 활성화되어 있으면 알림도 새로고침
+                        const notificationTab = document.getElementById('notifications');
+                        if (notificationTab && notificationTab.classList.contains('active')) {
+                            console.log('알림 로드 시작...');
+                            await loadNotifications();
+                            console.log('알림 로드 완료');
+                        }
+                        
+                        console.log('✅ 새로고침 완료');
+                    } catch (error) {
+                        console.error('❌ 새로고침 실패:', error);
+                    } finally {
+                        refreshBtn.textContent = originalText;
+                        refreshBtn.disabled = false;
+                    }
+                });
+            } else {
+                console.error('❌ refreshBtn 요소를 찾을 수 없음!');
+            }
+
+            // Sort Buttons
+            const sortByName = document.getElementById('sortByName');
+            const sortByLatency = document.getElementById('sortByLatency');
+            const sortByStatus = document.getElementById('sortByStatus');
+            
+            if (sortByName) sortByName.addEventListener('click', () => sortIPCards('name'));
+            if (sortByLatency) sortByLatency.addEventListener('click', () => sortIPCards('latency'));
+            if (sortByStatus) sortByStatus.addEventListener('click', () => sortIPCards('status'));
+
+            // Modal Buttons
+            const modalCloseBtn = document.getElementById('modalClose');
+            const detailModal = document.getElementById('detailModal');
+            
+            if (modalCloseBtn) {
+                modalCloseBtn.addEventListener('click', closeDetailModal);
+            }
+            
+            if (detailModal) {
+                detailModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'detailModal') {
+                        closeDetailModal();
+                    }
+                });
+            }
+
+            // Tab Buttons
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    btn.classList.add('active');
+                    const targetId = btn.getAttribute('data-tab');
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                    }
+                    
+                    if (targetId === 'notifications') {
+                        loadNotifications();
+                    }
+                });
+            });
+
+            // Notification Filter Buttons
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.getAttribute('data-filter');
+                    renderNotifications();
+                });
+            });
+
+            console.log('모든 이벤트 리스너 등록 완료');
+        }
+
+
+        // Time Update Functions
+        function updateTime() {
+            const now = new Date();
+            
+            // 현재 시간 (항상 업데이트)
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
+            
+            // 현재 날짜 (항상 업데이트)
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            document.getElementById('currentDate').textContent = `${year}-${month}-${day}`;
+            
+            // 모니터링 경과 시간 (일시정지 시 멈춤)
+            let elapsed;
+            if (!isRunning && pausedTime > 0) {
+                // 일시정지 중: 일시정지 시점의 경과 시간 유지
+                elapsed = Math.floor((pausedTime - startTime) / 1000);
+            } else {
+                // 실행 중: 현재까지의 경과 시간
+                elapsed = Math.floor((Date.now() - startTime) / 1000);
+            }
+            
+            const uptimeHours = Math.floor(elapsed / 3600);
+            const uptimeMinutes = Math.floor((elapsed % 3600) / 60);
+            const uptimeSeconds = elapsed % 60;
+            document.getElementById('uptime').textContent = 
+                `${String(uptimeHours).padStart(2, '0')}:${String(uptimeMinutes).padStart(2, '0')}:${String(uptimeSeconds).padStart(2, '0')}`;
+        }
 
         // Initialize Charts
         function initComparisonChart() {
@@ -176,8 +516,10 @@
             });
         }
 
-        function createIPChart(canvasId) {
+        function createIPChart(canvasId, index) {
             const ctx = document.getElementById(canvasId);
+            const color = brightColors[index % brightColors.length];
+            
             return new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -185,10 +527,11 @@
                     datasets: [{
                         label: 'Latency (ms)',
                         data: [],
-                        borderColor: '#4c6ef5',
-                        backgroundColor: 'rgba(76, 110, 245, 0.1)',
+                        borderColor: color,
+                        backgroundColor: color + '30',
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        borderWidth: 2
                     }]
                 },
                 options: {
@@ -246,6 +589,9 @@
 
             // Update IP cards
             updateIPCards(data.targets);
+            
+            // Update modal if open
+            updateModalIfOpen();
         }
 
         // Update Comparison Chart
@@ -253,12 +599,14 @@
             const labels = Array(60).fill('').map((_, i) => (60 - i) + 's');
             
             comparisonChart.data.labels = labels;
-            comparisonChart.data.datasets = targets.map(target => ({
+            comparisonChart.data.datasets = targets.map((target, index) => ({
                 label: target.name,
                 data: target.history,
-                borderColor: getRandomColor(target.ip),
+                borderColor: brightColors[index % brightColors.length],
+                backgroundColor: brightColors[index % brightColors.length] + '20',
                 tension: 0.4,
-                borderWidth: 2
+                borderWidth: 2,
+                fill: false
             }));
             
             comparisonChart.update();
@@ -274,7 +622,7 @@
                 if (!card) {
                     card = createIPCard(target, index);
                     container.appendChild(card);
-                    ipCharts[index] = createIPChart(`chart-${index}`);
+                    ipCharts[index] = createIPChart(`chart-${index}`, index);
                 }
                 
                 updateIPCard(card, target, index);
@@ -286,14 +634,28 @@
             const card = document.createElement('div');
             card.id = `ip-card-${index}`;
             card.className = 'ip-card';
+            card.draggable = true;
+            card.dataset.index = index;
+            
+            // Drag & Drop Events
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragover', handleDragOver);
+            card.addEventListener('drop', handleDrop);
+            card.addEventListener('dragend', handleDragEnd);
+            
             card.innerHTML = `
                 <div class="ip-header">
                     <div>
                         <div class="ip-name">${target.name}</div>
                         <div class="ip-address">${target.ip}</div>
                     </div>
-                    <span class="status-badge" id="status-${index}">오프라인</span>
+                    <div class="card-actions">
+                        <button class="card-action-btn card-minimize-btn" onclick="toggleMinimize(${index})" title="최소화">−</button>
+                        <button class="card-action-btn card-restore-btn" onclick="toggleMinimize(${index})" title="복원">+</button>
+                        <button class="card-action-btn card-expand-btn" onclick="openDetailModal(${index})" title="상세보기">⊕</button>
+                    </div>
                 </div>
+                <span class="status-badge" id="status-${index}">오프라인</span>
                 <div class="chart-container">
                     <canvas id="chart-${index}"></canvas>
                 </div>
@@ -320,31 +682,330 @@
             return card;
         }
 
+        // Drag & Drop Handlers
+        function handleDragStart(e) {
+            draggedElement = this;
+            draggedIndex = parseInt(this.dataset.index);
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            if (draggedElement !== this) {
+                const container = document.getElementById('ipCardsContainer');
+                const allCards = [...container.children];
+                const draggedPos = allCards.indexOf(draggedElement);
+                const targetPos = allCards.indexOf(this);
+                
+                if (draggedPos < targetPos) {
+                    this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                } else {
+                    this.parentNode.insertBefore(draggedElement, this);
+                }
+            }
+            
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            draggedElement = null;
+            draggedIndex = null;
+        }
+
+        // Sort Functions
+        function sortIPCards(sortBy) {
+            if (!currentData || !currentData.targets) return;
+            
+            const container = document.getElementById('ipCardsContainer');
+            const cards = [...container.children];
+            
+            const targets = currentData.targets.map((target, index) => ({
+                target,
+                index,
+                card: cards[index]
+            }));
+            
+            targets.sort((a, b) => {
+                switch(sortBy) {
+                    case 'name':
+                        return a.target.name.localeCompare(b.target.name);
+                    case 'latency':
+                        return b.target.latency - a.target.latency;
+                    case 'status':
+                        return b.target.online - a.target.online;
+                    default:
+                        return 0;
+                }
+            });
+            
+            container.innerHTML = '';
+            targets.forEach(item => {
+                container.appendChild(item.card);
+            });
+        }
+
+        // Toggle Minimize
+        function toggleMinimize(index) {
+            const card = document.getElementById(`ip-card-${index}`);
+            
+            if (!card) return;
+            
+            const isMinimized = card.classList.contains('minimized');
+            const ipCardsContainer = document.getElementById('ipCardsContainer');
+            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+            
+            if (isMinimized) {
+                // 복원: 최소화 영역 → 일반 영역
+                card.classList.remove('minimized');
+                card.draggable = true;
+                ipCardsContainer.appendChild(card);
+                console.log(`IP 카드 ${index} 복원`);
+            } else {
+                // 최소화: 일반 영역 → 최소화 영역
+                card.classList.add('minimized');
+                card.draggable = false;
+                minimizedCardsContainer.appendChild(card);
+                console.log(`IP 카드 ${index} 최소화`);
+            }
+            
+            // 최소화 영역 표시/숨김 및 카운트 업데이트
+            updateMinimizedArea();
+        }
+
+        // Save Minimized State
+        // Update Minimized Area
+        function updateMinimizedArea() {
+            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+            const minimizedCount = document.getElementById('minimizedCount');
+            
+            const count = minimizedCardsContainer.children.length;
+            
+            if (count > 0) {
+                minimizedCardsArea.style.display = 'block';
+            } else {
+                minimizedCardsArea.style.display = 'none';
+            }
+            
+            minimizedCount.textContent = count;
+        }
+
+        // Open Detail Modal
+        function openDetailModal(index) {
+            if (!currentData || !currentData.targets[index]) return;
+            
+            const target = currentData.targets[index];
+            currentModalTarget = index;
+            
+            // Update modal header
+            document.getElementById('modalTitle').textContent = target.name;
+            document.getElementById('modalSubtitle').textContent = target.ip;
+            
+            // Update stats
+            document.getElementById('modalLatency').textContent = target.latency + ' ms';
+            document.getElementById('modalMin').textContent = target.min + ' ms';
+            document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
+            document.getElementById('modalMax').textContent = target.max + ' ms';
+            
+            const lossRate = target.total > 0 ? ((target.failed / target.total) * 100).toFixed(1) : 0;
+            document.getElementById('modalLoss').textContent = lossRate + '%';
+            document.getElementById('modalStatus').textContent = target.online ? '온라인' : '오프라인';
+            document.getElementById('modalStatus').style.color = target.online ? 'var(--success)' : 'var(--error)';
+            
+            // Update details
+            document.getElementById('modalTotal').textContent = target.total;
+            document.getElementById('modalSuccess').textContent = target.total - target.failed;
+            document.getElementById('modalFailed').textContent = target.failed;
+            
+            // Last response time
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
+            
+            // Create modal chart
+            createModalChart(target, index);
+            
+            // Show modal
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        // Close Detail Modal
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('active');
+            if (modalChart) {
+                modalChart.destroy();
+                modalChart = null;
+            }
+            currentModalTarget = null;
+        }
+
+        // Create Modal Chart with Real-time Time Labels
+        function createModalChart(target, index) {
+            if (modalChart) {
+                modalChart.destroy();
+            }
+            
+            const ctx = document.getElementById('modalChart');
+            const color = brightColors[index % brightColors.length];
+            
+            // Generate time labels (last 60 seconds)
+            const now = new Date();
+            const labels = Array(60).fill('').map((_, i) => {
+                const time = new Date(now.getTime() - (59 - i) * 1000);
+                return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`;
+            });
+            
+            modalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '지연시간 (ms)',
+                        data: target.history,
+                        borderColor: color,
+                        backgroundColor: color + '30',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 3,
+                        pointRadius: 1,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { 
+                                color: '#e4e6eb', 
+                                font: { size: 12 },
+                                padding: 10
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 11 },
+                            padding: 8
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#3a3f5c' },
+                            ticks: { 
+                                color: '#b0b3b8',
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            grid: { color: '#3a3f5c' },
+                            ticks: { 
+                                color: '#b0b3b8',
+                                font: { size: 9 },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update Modal if Open
+        function updateModalIfOpen() {
+            if (currentModalTarget !== null && currentData && currentData.targets[currentModalTarget]) {
+                const target = currentData.targets[currentModalTarget];
+                
+                // Update stats
+                document.getElementById('modalLatency').textContent = target.latency + ' ms';
+                document.getElementById('modalMin').textContent = target.min + ' ms';
+                document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
+                document.getElementById('modalMax').textContent = target.max + ' ms';
+                
+                const lossRate = target.total > 0 ? ((target.failed / target.total) * 100).toFixed(1) : 0;
+                document.getElementById('modalLoss').textContent = lossRate + '%';
+                document.getElementById('modalStatus').textContent = target.online ? '온라인' : '오프라인';
+                document.getElementById('modalStatus').style.color = target.online ? 'var(--success)' : 'var(--error)';
+                
+                document.getElementById('modalTotal').textContent = target.total;
+                document.getElementById('modalSuccess').textContent = target.total - target.failed;
+                document.getElementById('modalFailed').textContent = target.failed;
+                
+                // Update chart with real-time labels
+                if (modalChart) {
+                    const now = new Date();
+                    const labels = Array(60).fill('').map((_, i) => {
+                        const time = new Date(now.getTime() - (59 - i) * 1000);
+                        return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`;
+                    });
+                    
+                    modalChart.data.labels = labels;
+                    modalChart.data.datasets[0].data = target.history;
+                    modalChart.update();
+                }
+                
+                // Last response time
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
+            }
+        }
+
         // Update IP Card
         function updateIPCard(card, target, index) {
-            // Status
-            const statusBadge = document.getElementById(`status-${index}`);
-            statusBadge.textContent = target.online ? '온라인' : '오프라인';
-            statusBadge.className = target.online ? 'status-badge status-online' : 'status-badge status-offline';
+            // Status (find in header or after header for minimized state)
+            const statusBadge = card.querySelector(`#status-${index}`);
+            if (statusBadge) {
+                statusBadge.textContent = target.online ? '온라인' : '오프라인';
+                statusBadge.className = target.online ? 'status-badge status-online' : 'status-badge status-offline';
+            }
 
             // Stats
-            document.getElementById(`latency-${index}`).textContent = target.latency + ' ms';
-            document.getElementById(`min-${index}`).textContent = target.min + ' ms';
-            document.getElementById(`avg-${index}`).textContent = Math.round(target.avg) + ' ms';
-            document.getElementById(`max-${index}`).textContent = target.max + ' ms';
+            const latencyEl = document.getElementById(`latency-${index}`);
+            if (latencyEl) latencyEl.textContent = target.latency + ' ms';
+            
+            const minEl = document.getElementById(`min-${index}`);
+            if (minEl) minEl.textContent = target.min + ' ms';
+            
+            const avgEl = document.getElementById(`avg-${index}`);
+            if (avgEl) avgEl.textContent = Math.round(target.avg) + ' ms';
+            
+            const maxEl = document.getElementById(`max-${index}`);
+            if (maxEl) maxEl.textContent = target.max + ' ms';
 
             // Chart
-            if (ipCharts[index]) {
+            if (ipCharts[index] && !card.classList.contains('minimized')) {
                 ipCharts[index].data.datasets[0].data = target.history;
                 ipCharts[index].update();
             }
 
             // Packet bars
             const packetsContainer = document.getElementById(`packets-${index}`);
-            packetsContainer.innerHTML = target.history.map(latency => {
-                const className = latency > 0 ? 'packet-bar packet-success' : 'packet-bar packet-fail';
-                return `<div class="${className}"></div>`;
-            }).join('');
+            if (packetsContainer) {
+                packetsContainer.innerHTML = target.history.map(latency => {
+                    const className = latency > 0 ? 'packet-bar packet-success' : 'packet-bar packet-fail';
+                    return `<div class="${className}"></div>`;
+                }).join('');
+            }
         }
 
         // Load Notifications
@@ -426,25 +1087,6 @@
             });
         });
 
-        // Control Buttons
-        document.getElementById('toggleBtn').addEventListener('click', () => {
-            isRunning = !isRunning;
-            const btn = document.getElementById('toggleBtn');
-            btn.textContent = isRunning ? '일시정지' : '시작';
-            btn.className = isRunning ? 'btn btn-primary' : 'btn btn-success';
-            
-            if (isRunning) {
-                startUpdates();
-            } else {
-                stopUpdates();
-            }
-        });
-
-        document.getElementById('refreshBtn').addEventListener('click', () => {
-            loadData();
-            loadNotifications();
-        });
-
         // Update Loop
         function startUpdates() {
             updateInterval = setInterval(() => {
@@ -457,24 +1099,6 @@
                 clearInterval(updateInterval);
             }
         }
-
-        // Utility: Random Color
-        function getRandomColor(seed) {
-            const colors = [
-                '#4c6ef5', '#51cf66', '#ffd43b', '#ff6b6b',
-                '#9775fa', '#20c997', '#ff922b', '#748ffc'
-            ];
-            let hash = 0;
-            for (let i = 0; i < seed.length; i++) {
-                hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-            }
-            return colors[Math.abs(hash) % colors.length];
-        }
-
-        // Initialize
-        initComparisonChart();
-        loadData();
-        startUpdates();
     </script>
 </body>
 </html>

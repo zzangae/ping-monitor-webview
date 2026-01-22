@@ -9,15 +9,20 @@ Windows용 실시간 네트워크 핑 모니터링 도구. C 백엔드 + HTML/JS
 ## 📁 파일 구조
 
 ```
-ping_monitor_webview/
-├── ping_monitor_webview.c   # 메인 프로그램 (약 700줄)
-├── http_server.h            # HTTP 서버 헤더
-├── http_server.c            # HTTP 서버 구현 (약 280줄)
-├── graph.html               # Chart.js 대시보드 (약 1,150줄)
-├── ping_config.ini          # IP 설정 파일
-├── build.bat                # 빌드 스크립트
-└── docs/
-    └── TRAY_ICON.md         # 트레이 아이콘 구조 문서
+프로젝트/
+├── ping_monitor_webview.c
+├── http_server.h
+├── http_server.c
+├── ping_config.ini
+├── build.bat
+├── graph.html
+└── css/
+    ├── variables.css      (변수)
+    ├── base.css           (기본)
+    ├── components.css     (컴포넌트)
+    ├── dashboard.css      (대시보드)
+    ├── notifications.css  (알림)
+    └── responsive.css     (반응형)
 ```
 
 ---

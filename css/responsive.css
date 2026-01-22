@@ -1,8 +1,23 @@
 /* responsive.css - 반응형 스타일 */
 
-@media (max-width: 768px) {
-    .ip-grid {
-        grid-template-columns: 1fr;
+/* IP 카드는 고정 크기 350px 유지 */
+/* 최소화된 카드는 100px */
+/* 화면 크기에 따라 자동으로 열 개수 조정됨 */
+
+/* Tablets (768px - 899px) */
+@media (max-width: 899px) {
+    .unified-control-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .control-divider {
+        display: none;
     }
     
     .stats-row {
@@ -11,6 +26,70 @@
     
     .tab-nav {
         flex-direction: column;
+    }
+    
+    /* Modal adjustments */
+    .modal-content {
+        width: 95%;
+        max-height: 90vh;
+    }
+    
+    .modal-stats {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .modal-details {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .modal-chart-container {
+        height: 250px;
+    }
+}
+
+/* Small Tablets & Large Phones (600px - 767px) */
+@media (max-width: 767px) {
+    .header h1 {
+        font-size: 24px;
+    }
+    
+    .header-toggle {
+        width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+    
+    .time-display {
+        padding: 4px 8px;
+    }
+    
+    .time-value {
+        font-size: 14px;
+    }
+    
+    /* Minimized cards on small screens */
+    .ip-card.minimized {
+        width: 90px;
+        height: 110px;
+    }
+}
+
+/* Mobile (less than 600px) */
+@media (max-width: 599px) {
+    .container {
+        padding: 12px;
+    }
+    
+    .ip-grid {
+        gap: 12px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .stats-row {
+        grid-template-columns: 1fr;
     }
     
     .control-panel {
@@ -22,16 +101,146 @@
     }
     
     .header h1 {
-        font-size: 24px;
+        font-size: 20px;
+    }
+    
+    .header.collapsed h1 {
+        font-size: 16px;
+    }
+    
+    .stat-item-inline {
+        min-width: 60px;
+        padding: 4px 8px;
+    }
+    
+    .stat-item-inline .stat-label {
+        font-size: 10px;
+    }
+    
+    .stat-item-inline .stat-value {
+        font-size: 14px;
+    }
+    
+    .modal-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-chart-container {
+        height: 200px;
+    }
+    
+    .modal-details {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-stat-value {
+        font-size: 20px;
+    }
+    
+    .modal-detail-value {
+        font-size: 14px;
     }
 }
 
-@media (max-width: 480px) {
+/* Very Small Screens (less than 400px) */
+@media (max-width: 399px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* 작은 화면에서는 카드를 전체 너비로 */
+    .ip-card:not(.minimized) {
+        width: 100%;
+    }
+    
+    .ip-grid {
+        grid-template-columns: repeat(auto-fill, 90px);
+    }
+    
+    /* Minimized cards */
+    .ip-card.minimized {
+        width: 80px;
+        height: 100px;
+        padding: 8px;
+    }
+}
+
+
+/* Mobile (less than 600px) */
+@media (max-width: 599px) {
+    .container {
+        padding: 12px;
+    }
+    
+    .ip-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }
     
     .stats-row {
         grid-template-columns: 1fr;
+    }
+    
+    .control-panel {
+        flex-direction: column;
+    }
+    
+    .filter-bar {
+        flex-direction: column;
+    }
+    
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .header.collapsed h1 {
+        font-size: 16px;
+    }
+    
+    .stat-item-inline {
+        min-width: 60px;
+        padding: 4px 8px;
+    }
+    
+    .stat-item-inline .stat-label {
+        font-size: 10px;
+    }
+    
+    .stat-item-inline .stat-value {
+        font-size: 14px;
+    }
+}
+
+/* Very Small Screens (less than 400px) */
+@media (max-width: 399px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Zoom Support */
+@media (max-width: 1400px) {
+    .ip-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}
+
+@media (max-width: 1000px) {
+    .ip-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     }
 }
