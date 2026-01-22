@@ -21,15 +21,12 @@
 
 ```
 ping_monitor_webview/
-├── ping_monitor_integrated.c   # 메인 소스 코드
-├── embedded_html.h             # 내장 HTML/CSS/JS
+├── ping_monitor_webview.c      # 메인 소스 코드
 ├── ping_config.ini             # IP 설정 파일
-├── build_integrated.bat        # 빌드 스크립트
-├── download_webview2.bat       # WebView2Loader 다운로드
-└── dist/                       # 배포 폴더
-    ├── ping_monitor.exe
-    ├── WebView2Loader.dll
-    └── ping_config.ini
+├── graph.html                  # localhost
+├── build.bat                   # 빌드 스크립트
+├── ping_monitor.exe            # 배포 파일
+└── ping_data.json
 ```
 
 ## 🔧 빌드 방법
@@ -40,43 +37,29 @@ ping_monitor_webview/
   - 다운로드: https://winlibs.com/
   - 또는 MSYS2: `pacman -S mingw-w64-x86_64-gcc`
 
-- **WebView2Loader.dll**
-  - 자동 다운로드: `download_webview2.bat` 실행
-  - 수동 다운로드: https://www.nuget.org/packages/Microsoft.Web.WebView2
-
 ### 2. 빌드 실행
+build.bat
 
-```batch
-# 1. WebView2Loader.dll 다운로드 (최초 1회)
-download_webview2.bat
+### 3. 실행
+ping_monitor.exe
 
-# 2. 빌드
-build_integrated.bat
-```
+### 4. 서버 실행 (같은 폴더에서)
+python -m http.server 8080
+
+### 5. 브라우저
+http://localhost:8080/graph.html
 
 ### 3. 수동 컴파일 (선택사항)
-
 ```batch
-gcc -o ping_monitor.exe ping_monitor_integrated.c ^
-    -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 ^
-    -mwindows -municode -O2
+gcc -o ping_monitor.exe ping_monitor_integrated.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -mwindows -municode -O2
 ```
 
-## 🚀 실행 방법
-
-1. `dist` 폴더로 이동
-2. `ping_monitor.exe` 실행
-3. 자동으로 모니터링 시작
-
 ### 실행 요구사항
-
 - Windows 10 버전 1803 이상
 - Microsoft Edge WebView2 Runtime (대부분 기본 설치됨)
 
 ## ⚙️ 설정
-
 ### ping_config.ini
-
 ```ini
 # 형식: IP주소,설명
 8.8.8.8,Google DNS
@@ -107,7 +90,6 @@ gcc -o ping_monitor.exe ping_monitor_integrated.c ^
 ## 🛠️ 개발 노트
 
 ### WebView2 COM 인터페이스
-
 MinGW에서 WebView2를 사용하기 위해 COM 인터페이스를 수동으로 정의:
 
 - ICoreWebView2
@@ -115,20 +97,5 @@ MinGW에서 WebView2를 사용하기 위해 COM 인터페이스를 수동으로 
 - ICoreWebView2Environment
 - 콜백 핸들러들
 
-### C ↔ JavaScript 통신
-
-**C → JS**: `PostWebMessageAsJson(json)` → `chrome.webview.addEventListener('message', ...)`
-
-**JS → C**: `chrome.webview.postMessage(cmd)` → `WebMessageReceived` 핸들러
-
 ## 📋 TODO
 
-- [ ] 3D 네트워크 맵 (Three.js)
-- [ ] 지도 기반 IP 위치 (Leaflet)
-- [ ] 시스템 트레이 최소화
-- [ ] 리포트 생성 (PDF/Excel)
-- [ ] 알림 시스템 (토스트/사운드)
-
-## 📜 라이선스
-
-MIT License
