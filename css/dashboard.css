@@ -1,0 +1,133 @@
+/* dashboard.css - 대시보드 관련 스타일 */
+
+/* Control Panel */
+.control-panel {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 2px 4px var(--shadow);
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+/* IP Cards Grid */
+.ip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+}
+
+.ip-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 4px var(--shadow);
+    transition: transform 0.3s;
+}
+
+.ip-card:hover {
+    transform: translateY(-4px);
+}
+
+.ip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.ip-name {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.ip-address {
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+/* Chart Container */
+.chart-container {
+    position: relative;
+    height: 200px;
+    margin: 16px 0;
+}
+
+/* Stats Row */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-item-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.stat-item-value {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* Packet Bars (Heatmap) */
+.packet-bars {
+    display: flex;
+    gap: 2px;
+    height: 40px;
+    margin-top: 12px;
+}
+
+.packet-bar {
+    flex: 1;
+    border-radius: 2px;
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.packet-bar:hover {
+    transform: scaleY(1.2);
+}
+
+.packet-success {
+    background: var(--success);
+}
+
+.packet-fail {
+    background: var(--error);
+}
+
+.packet-none {
+    background: var(--border);
+}

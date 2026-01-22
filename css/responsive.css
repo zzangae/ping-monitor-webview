@@ -1,0 +1,37 @@
+/* responsive.css - 반응형 스타일 */
+
+@media (max-width: 768px) {
+    .ip-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .tab-nav {
+        flex-direction: column;
+    }
+    
+    .control-panel {
+        flex-direction: column;
+    }
+    
+    .filter-bar {
+        flex-direction: column;
+    }
+    
+    .header h1 {
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+}

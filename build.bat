@@ -1,53 +1,72 @@
 @echo off
-chcp 65001 >nul
-echo ============================================
-echo   Ping Monitor WebView2 - Build Script
-echo ============================================
+REM Ping Monitor with Notifications - Build Script
+REM Windows Network Monitoring Tool with Notification Support
+
+echo ========================================
+echo Ping Monitor (v2.3 - Notifications)
+echo ========================================
 echo.
 
-REM MinGW-w64 컴파일
-echo [1/2] Compiling with MinGW-w64...
-gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -lshell32 -mwindows -municode -O2
-
-if %errorlevel% neq 0 (
+REM Check for compiler
+where gcc >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] gcc not found.
+    echo Please install MinGW-w64 and add it to PATH.
     echo.
-    echo [ERROR] Compilation failed!
-    echo Make sure MinGW-w64 is installed and in PATH.
+    echo Download: https://www.mingw-w64.org/
     pause
     exit /b 1
 )
 
-echo [OK] ping_monitor.exe created successfully!
-echo.
+echo [1/3] Compiling...
+gcc -o ping_monitor.exe ^
+    ping_monitor_webview.c ^
+    http_server.c ^
+    -lws2_32 ^
+    -liphlpapi ^
+    -lshlwapi ^
+    -lole32 ^
+    -loleaut32 ^
+    -lshell32 ^
+    -mwindows ^
+    -municode ^
+    -O2
 
-REM 파일 확인
-echo [2/2] Checking required files...
-
-if exist "graph.html" (
-    echo [OK] graph.html found
-) else (
-    echo [WARNING] graph.html not found - copy it to the same folder!
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERROR] Compilation failed!
+    pause
+    exit /b 1
 )
 
-if exist "ping_config.ini" (
-    echo [OK] ping_config.ini found
-) else (
-    echo [INFO] ping_config.ini not found - will use defaults
+echo [2/3] Checking configuration file...
+if not exist ping_config.ini (
+    echo [WARNING] ping_config.ini not found.
+    echo Please create a config file.
+)
+
+echo [3/3] Checking HTML file...
+if not exist graph.html (
+    echo [WARNING] graph.html not found.
+    echo The program requires graph.html to work properly.
 )
 
 echo.
-echo ============================================
-echo   Build Complete!
-echo ============================================
+echo ========================================
+echo Build Complete!
+echo ========================================
 echo.
-echo To run:
-echo   1. Run ping_monitor.exe
-echo   2. Browser opens automatically (http://localhost:8080)
-echo   3. Right-click tray icon for options
+echo Executable: ping_monitor.exe
+echo Config file: ping_config.ini
+echo Web Dashboard: http://localhost:8080/graph.html
 echo.
-echo Features:
-echo   - Built-in HTTP server (port 8080)
-echo   - System tray icon
-echo   - Auto browser launch
+echo New Features (v2.3):
+echo   - Tray balloon notifications on timeout
+echo   - Connection recovery notifications
+echo   - Toggle notifications from tray menu
+echo   - Configurable via ping_config.ini [Settings]
+echo.
+echo Usage:
+echo   ping_monitor.exe
 echo.
 pause
