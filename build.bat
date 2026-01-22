@@ -7,7 +7,7 @@ echo.
 
 REM MinGW-w64 컴파일
 echo [1/2] Compiling with MinGW-w64...
-gcc -o ping_monitor.exe ping_monitor_webview.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -mwindows -municode -O2
+gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -lshell32 -mwindows -municode -O2
 
 if %errorlevel% neq 0 (
     echo.
@@ -42,11 +42,12 @@ echo ============================================
 echo.
 echo To run:
 echo   1. Run ping_monitor.exe
-echo   2. Open graph.html in your browser
+echo   2. Browser opens automatically (http://localhost:8080)
+echo   3. Right-click tray icon for options
 echo.
-echo Files needed in same folder:
-echo   - ping_monitor.exe
-echo   - graph.html
-echo   - ping_config.ini (optional)
+echo Features:
+echo   - Built-in HTTP server (port 8080)
+echo   - System tray icon
+echo   - Auto browser launch
 echo.
 pause
