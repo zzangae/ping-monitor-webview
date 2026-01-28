@@ -135,6 +135,7 @@ void StopMonitoring(void);
 DWORD WINAPI MonitoringThread(LPVOID lpParam);
 void OpenBrowser(const wchar_t *url);
 void KillPreviousInstance(void);
+BOOL CheckRequiredFiles(void);
 
 // 알림 관련 함수
 void LoadNotificationSettings(void);
@@ -147,6 +148,62 @@ BOOL IsPortAvailable(int port);
 int FindAvailablePort(int startPort, int endPort);
 void ChangeServerPort(HWND hwnd);
 BOOL RestartServer(int newPort);
+
+// 필수 파일 체크
+BOOL CheckRequiredFiles(void)
+{
+    wchar_t exeDir[MAX_PATH];
+    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
+    PathRemoveFileSpecW(exeDir);
+
+    // 필수 파일 목록
+    const wchar_t *requiredFiles[] = {
+        L"graph.html",
+        L"css\\variables.css",
+        L"css\\base.css",
+        L"css\\components.css",
+        L"css\\dashboard.css",
+        L"css\\notifications.css",
+        L"css\\responsive.css"};
+
+    wchar_t missingFiles[2048] = L"다음 필수 파일이 없습니다:\n\n";
+    BOOL allFilesExist = TRUE;
+
+    for (int i = 0; i < sizeof(requiredFiles) / sizeof(requiredFiles[0]); i++)
+    {
+        wchar_t filePath[MAX_PATH];
+        swprintf(filePath, MAX_PATH, L"%s\\%s", exeDir, requiredFiles[i]);
+
+        if (GetFileAttributesW(filePath) == INVALID_FILE_ATTRIBUTES)
+        {
+            wcscat(missingFiles, L"  - ");
+            wcscat(missingFiles, requiredFiles[i]);
+            wcscat(missingFiles, L"\n");
+            allFilesExist = FALSE;
+        }
+    }
+
+    if (!allFilesExist)
+    {
+        wcscat(missingFiles, L"\n\n프로그램 폴더 구조:\n");
+        wcscat(missingFiles, L"  ping_monitor.exe\n");
+        wcscat(missingFiles, L"  graph.html\n");
+        wcscat(missingFiles, L"  ping_config.ini\n");
+        wcscat(missingFiles, L"  css\\\n");
+        wcscat(missingFiles, L"    ├─ variables.css\n");
+        wcscat(missingFiles, L"    ├─ base.css\n");
+        wcscat(missingFiles, L"    ├─ components.css\n");
+        wcscat(missingFiles, L"    ├─ dashboard.css\n");
+        wcscat(missingFiles, L"    ├─ notifications.css\n");
+        wcscat(missingFiles, L"    └─ responsive.css\n\n");
+        wcscat(missingFiles, L"GitHub: https://github.com/zzangae/ping-monitor-webview");
+
+        MessageBoxW(NULL, missingFiles, L"파일 누락 오류", MB_OK | MB_ICONERROR);
+        return FALSE;
+    }
+
+    return TRUE;
+}
 
 // 포트 사용 가능 여부 확인
 BOOL IsPortAvailable(int port)
@@ -1179,6 +1236,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     }
 
     InitializeCriticalSection(&g_logLock);
+
+    // 필수 파일 체크
+    if (!CheckRequiredFiles())
+    {
+        DeleteCriticalSection(&g_logLock);
+        WSACleanup();
+        return 1;
+    }
 
     KillPreviousInstance();
 
