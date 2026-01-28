@@ -276,18 +276,7 @@ build.bat
 
 ### 수동 빌드 (선택)
 ```bash
-gcc -o ping_monitor.exe ^
-    ping_monitor_webview.c ^
-    http_server.c ^
-    -lws2_32 ^
-    -liphlpapi ^
-    -lshlwapi ^
-    -lole32 ^
-    -loleaut32 ^
-    -lshell32 ^
-    -mwindows ^
-    -municode ^
-    -O2
+gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -lshell32 -mwindows -municode -O2
 ```
 
 ---
