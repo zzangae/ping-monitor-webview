@@ -27,6 +27,7 @@
 #define PING_TIMEOUT 2000
 #define JSON_FILE L"ping_data.json"
 #define CONFIG_FILE L"ping_config.ini"
+#define INT_CONFIG_FILE L"int_config.ini"
 
 // 윈도우 메시지
 #define WM_TRAYICON (WM_USER + 1)
@@ -113,6 +114,7 @@ static CRITICAL_SECTION g_logLock;
 
 // 함수 선언
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+void LoadConfigFromFile(const wchar_t *configFile);
 void LoadConfig(void);
 void InitTrayIcon(HWND hwnd);
 void RemoveTrayIcon(void);
@@ -133,7 +135,7 @@ void CheckAndNotify(IPTarget *target);
 void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr);
 
 // 설정 파일 로드
-void LoadConfig(void)
+void LoadConfigFromFile(const wchar_t *configFile)
 {
     wchar_t configPath[MAX_PATH];
     wchar_t exeDir[MAX_PATH];
@@ -141,7 +143,7 @@ void LoadConfig(void)
     GetModuleFileNameW(NULL, exeDir, MAX_PATH);
     PathRemoveFileSpecW(exeDir);
 
-    swprintf(configPath, MAX_PATH, L"%s\\%s", exeDir, CONFIG_FILE);
+    swprintf(configPath, MAX_PATH, L"%s\\%s", exeDir, configFile);
 
     FILE *file = _wfopen(configPath, L"r, ccs=UTF-8");
     if (!file)
@@ -151,12 +153,13 @@ void LoadConfig(void)
 
     if (!file)
     {
-        wprintf(L"설정 파일을 열 수 없습니다: %s\n", configPath);
+        wprintf(L"설정 파일을 열 수 없습니다: %s (무시)\n", configPath);
         return;
     }
 
+    wprintf(L"설정 파일 읽는 중: %s\n", configFile);
+
     wchar_t line[512];
-    g_targetCount = 0;
     BOOL inSettingsSection = FALSE;
 
     while (fgetws(line, 512, file) && g_targetCount < MAX_IP_COUNT)
@@ -281,11 +284,32 @@ void LoadConfig(void)
     }
 
     fclose(file);
-    wprintf(L"설정 로드 완료: %d개 타겟\n", g_targetCount);
+    wprintf(L"  %s에서 타겟 로드 완료\n", configFile);
+}
+
+void LoadConfig(void)
+{
+    // 초기화
+    g_targetCount = 0;
+
+    // 1. 기본 설정 파일 로드 (ping_config.ini)
+    wprintf(L"==========================================\n");
+    wprintf(L"설정 파일 로딩 시작\n");
+    wprintf(L"==========================================\n");
+    LoadConfigFromFile(CONFIG_FILE);
+
+    // 2. 내부 설정 파일 로드 (int_config.ini) - 선택적
+    wprintf(L"------------------------------------------\n");
+    LoadConfigFromFile(INT_CONFIG_FILE);
+
+    // 최종 결과 출력
+    wprintf(L"==========================================\n");
+    wprintf(L"설정 로드 완료: 총 %d개 타겟\n", g_targetCount);
     wprintf(L"알림 설정: %s (쿨다운: %d초, 연속실패: %d회)\n",
             g_notifSettings.enabled ? L"활성화" : L"비활성화",
             g_notifSettings.cooldown,
             g_notifSettings.consecutiveFailuresThreshold);
+    wprintf(L"==========================================\n");
 }
 
 // 🆕 트레이 아이콘 풍선 알림 표시
