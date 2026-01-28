@@ -93,9 +93,34 @@
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">IP 비교 타임라인</div>
+                    <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
+                        </svg>
+                    </button>
                 </div>
                 <div class="chart-container" style="height: 300px;">
                     <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart Settings Modal -->
+            <div class="modal" id="chartSettingsModal">
+                <div class="modal-content" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h3>표시할 IP 선택</h3>
+                        <button class="modal-close" id="closeChartSettings">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="chart-settings-controls">
+                            <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
+                            <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
+                        </div>
+                        <div class="ip-checkbox-list" id="ipCheckboxList">
+                            <!-- IP 체크박스가 동적으로 추가됩니다 -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -232,6 +257,9 @@
         let pausedTime = 0;     // 일시정지 시작 시간
         let modalChart = null;
         let currentModalTarget = null;
+        
+        // Chart Visibility
+        let visibleIPs = new Set(); // 표시할 IP 목록
         
         // Notification State
         let allNotifications = [];
@@ -444,6 +472,45 @@
                 });
             });
 
+            // Chart Settings Modal
+            const chartSettingsBtn = document.getElementById('chartSettingsBtn');
+            const chartSettingsModal = document.getElementById('chartSettingsModal');
+            const closeChartSettings = document.getElementById('closeChartSettings');
+            const selectAllIPs = document.getElementById('selectAllIPs');
+            const deselectAllIPs = document.getElementById('deselectAllIPs');
+
+            if (chartSettingsBtn) {
+                chartSettingsBtn.addEventListener('click', () => {
+                    openChartSettings();
+                });
+            }
+
+            if (closeChartSettings) {
+                closeChartSettings.addEventListener('click', () => {
+                    chartSettingsModal.classList.remove('active');
+                });
+            }
+
+            if (chartSettingsModal) {
+                chartSettingsModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'chartSettingsModal') {
+                        chartSettingsModal.classList.remove('active');
+                    }
+                });
+            }
+
+            if (selectAllIPs) {
+                selectAllIPs.addEventListener('click', () => {
+                    selectAllIPsForChart();
+                });
+            }
+
+            if (deselectAllIPs) {
+                deselectAllIPs.addEventListener('click', () => {
+                    deselectAllIPsForChart();
+                });
+            }
+
             console.log('모든 이벤트 리스너 등록 완료');
         }
 
@@ -571,6 +638,12 @@
         function updateUI(data) {
             if (!data || !data.targets) return;
 
+            // 처음 로드 시 또는 IP 개수가 변경된 경우 visibleIPs 초기화
+            if (visibleIPs.size === 0 || visibleIPs.size !== data.targets.length) {
+                visibleIPs.clear();
+                data.targets.forEach((_, index) => visibleIPs.add(index));
+            }
+
             // Update global stats
             const onlineCount = data.targets.filter(t => t.online).length;
             const offlineCount = data.targets.length - onlineCount;
@@ -599,17 +672,104 @@
             const labels = Array(60).fill('').map((_, i) => (60 - i) + 's');
             
             comparisonChart.data.labels = labels;
-            comparisonChart.data.datasets = targets.map((target, index) => ({
-                label: target.name,
-                data: target.history,
-                borderColor: brightColors[index % brightColors.length],
-                backgroundColor: brightColors[index % brightColors.length] + '20',
-                tension: 0.4,
-                borderWidth: 2,
-                fill: false
-            }));
+            
+            // visibleIPs에 있는 것만 표시
+            const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
+            
+            comparisonChart.data.datasets = filteredTargets.map((target) => {
+                // 원래 인덱스 찾기
+                const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
+                return {
+                    label: target.name,
+                    data: target.history,
+                    borderColor: brightColors[originalIndex % brightColors.length],
+                    backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
+                    tension: 0.4,
+                    borderWidth: 2,
+                    fill: false
+                };
+            });
             
             comparisonChart.update();
+        }
+
+        // Chart Settings Functions
+        function openChartSettings() {
+            if (!currentData || !currentData.targets) return;
+            
+            populateIPCheckboxList(currentData.targets);
+            document.getElementById('chartSettingsModal').classList.add('active');
+        }
+
+        function populateIPCheckboxList(targets) {
+            const listContainer = document.getElementById('ipCheckboxList');
+            listContainer.innerHTML = '';
+
+            targets.forEach((target, index) => {
+                const item = document.createElement('div');
+                item.className = 'ip-checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `ip-check-${index}`;
+                checkbox.checked = visibleIPs.has(index);
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        visibleIPs.add(index);
+                    } else {
+                        visibleIPs.delete(index);
+                    }
+                    updateComparisonChart(targets);
+                });
+
+                const label = document.createElement('label');
+                label.className = 'ip-checkbox-label';
+                label.htmlFor = `ip-check-${index}`;
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = 'ip-checkbox-color';
+                colorBox.style.backgroundColor = brightColors[index % brightColors.length];
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'ip-checkbox-name';
+                nameSpan.textContent = target.name;
+                
+                const ipSpan = document.createElement('span');
+                ipSpan.className = 'ip-checkbox-ip';
+                ipSpan.textContent = target.ip;
+                
+                label.appendChild(colorBox);
+                label.appendChild(nameSpan);
+                label.appendChild(ipSpan);
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                listContainer.appendChild(item);
+            });
+        }
+
+        function selectAllIPsForChart() {
+            if (!currentData || !currentData.targets) return;
+            
+            currentData.targets.forEach((_, index) => {
+                visibleIPs.add(index);
+                const checkbox = document.getElementById(`ip-check-${index}`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            updateComparisonChart(currentData.targets);
+        }
+
+        function deselectAllIPsForChart() {
+            if (!currentData || !currentData.targets) return;
+            
+            visibleIPs.clear();
+            currentData.targets.forEach((_, index) => {
+                const checkbox = document.getElementById(`ip-check-${index}`);
+                if (checkbox) checkbox.checked = false;
+            });
+            
+            updateComparisonChart(currentData.targets);
         }
 
         // Update IP Cards

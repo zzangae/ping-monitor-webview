@@ -540,3 +540,99 @@
 .packet-none {
     background: var(--border);
 }
+
+/* Chart Settings Button */
+.chart-settings-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    margin-left: auto;
+}
+
+.chart-settings-btn:hover {
+    background: var(--bg-hover);
+    color: var(--primary);
+}
+
+.chart-settings-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Chart Settings Modal Content */
+.chart-settings-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    justify-content: flex-end;
+}
+
+.chart-settings-controls .btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+/* IP Checkbox List */
+.ip-checkbox-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.ip-checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ip-checkbox-item:hover {
+    background: var(--bg-hover);
+}
+
+.ip-checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.ip-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.ip-checkbox-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ip-checkbox-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ip-checkbox-ip {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+}
