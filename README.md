@@ -163,7 +163,6 @@ build.bat
 ├── http_server.h               # HTTP 서버 헤더
 ├── build.bat                   # 빌드 스크립트
 ├── ping_config.ini             # 공개 IP 설정 ← Git 포함 ✅
-├── int_config.ini.example      # 내부 IP 예시 ← Git 포함 ✅
 ├── int_config.ini              # 내부 IP 실제 ← Git 제외 ⛔
 ├── .gitignore                  # Git 제외 목록
 ├── README.md                   # 이 문서
@@ -211,10 +210,15 @@ ConsecutiveFailures=3           # 연속 실패 임계값
 # 형식: ip,name
 # 한 줄에 하나씩
 
-192.168.1.100,내부 웹서버
-192.168.1.200,데이터베이스 서버
-10.0.0.50,파일 서버
-172.16.0.10,개발 서버
+# Internal IP Configuration (Example)
+# Format: ip,name
+
+# Settings (optional - will use ping_config.ini settings)
+[Settings]
+# NotificationsEnabled=1
+# NotificationCooldown=60
+
+# 모니터링대상
 ```
 
 #### int_config.ini 생성 방법
