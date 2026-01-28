@@ -11,6 +11,9 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+// 외부 변수 선언 (메인 윈도우 핸들)
+extern HWND g_mainHwnd;
+
 // ============================================================================
 // 전역 변수
 // ============================================================================
@@ -178,15 +181,20 @@ static void HandleClient(SOCKET clientSocket)
 
     buffer[received] = '\0';
 
-    // GET 요청 파싱
-    if (strncmp(buffer, "GET ", 4) != 0)
+    // GET 또는 POST 요청 파싱
+    BOOL isPost = FALSE;
+    if (strncmp(buffer, "POST ", 5) == 0)
+    {
+        isPost = TRUE;
+    }
+    else if (strncmp(buffer, "GET ", 4) != 0)
     {
         Send404(clientSocket);
         return;
     }
 
     // URL 추출
-    char *urlStart = buffer + 4;
+    char *urlStart = buffer + (isPost ? 5 : 4);
     char *urlEnd = strchr(urlStart, ' ');
     if (!urlEnd)
     {
@@ -203,6 +211,29 @@ static void HandleClient(SOCKET clientSocket)
     char *query = strchr(url, '?');
     if (query)
         *query = '\0';
+
+    // /shutdown 엔드포인트 처리
+    if (strcmp(url, "/shutdown") == 0)
+    {
+        const char *response =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 2\r\n"
+            "Connection: close\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "\r\n"
+            "OK";
+
+        send(clientSocket, response, (int)strlen(response), 0);
+
+        // 메인 윈도우에 종료 메시지 전송
+        if (g_mainHwnd)
+        {
+            PostMessage(g_mainHwnd, WM_CLOSE, 0, 0);
+        }
+
+        return;
+    }
 
     // 기본 페이지
     if (strcmp(url, "/") == 0)

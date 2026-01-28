@@ -21,6 +21,9 @@
 // HTTP 서버 헤더
 #include "http_server.h"
 
+// 외부에서 접근 가능한 종료 플래그
+extern HWND g_mainHwnd;
+
 // 상수 정의
 #define MAX_IP_COUNT 50
 #define MAX_HISTORY 60
@@ -101,6 +104,7 @@ static int g_targetCount = 0;
 static TimeSettings g_timeSettings = {1000, 0, TRUE};
 static BOOL g_isRunning = FALSE;
 static HWND g_hwnd = NULL;
+HWND g_mainHwnd = NULL; // HTTP 서버에서 접근 가능
 static NOTIFYICONDATAW g_nid = {0};
 static wchar_t g_exePath[MAX_PATH] = {0};
 static int g_currentPort = HTTP_PORT;
@@ -1266,6 +1270,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         WSACleanup();
         return 1;
     }
+
+    g_mainHwnd = g_hwnd; // HTTP 서버에서 접근 가능하도록 설정
 
     ShowWindow(g_hwnd, SW_HIDE);
 
