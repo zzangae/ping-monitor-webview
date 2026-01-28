@@ -1,9 +1,8 @@
 # 🌐 Ping Monitor WebView2 - 프로젝트 현황
 
 ## 프로젝트 개요
-
-Windows용 실시간 네트워크 핑 모니터링 도구. C 백엔드 + HTML/JS 프론트엔드 구조.
-
+* Windows용 실시간 네트워크 핑 모니터링 도구. C 백엔드 + HTML/JS 프론트엔드 구조.
+* https://github.com/zzangae/pings 연결됨
 ---
 
 ## 📁 파일 구조
