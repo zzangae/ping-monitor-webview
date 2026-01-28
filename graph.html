@@ -90,7 +90,7 @@
             </div>
 
             <!-- Comparison Chart -->
-            <div class="card">
+            <div class="card" id="comparisonChartCard">
                 <div class="card-header">
                     <div class="card-title">IP 비교 타임라인</div>
                     <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
@@ -116,6 +116,7 @@
                         <div class="chart-settings-controls">
                             <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
                             <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
+                            <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
                         </div>
                         <div class="ip-checkbox-list" id="ipCheckboxList">
                             <!-- IP 체크박스가 동적으로 추가됩니다 -->
@@ -253,13 +254,13 @@
         let draggedElement = null;
         let draggedIndex = null;
         let startTime = Date.now();
-        let pausedElapsed = 0;  // 일시정지된 경과 시간
-        let pausedTime = 0;     // 일시정지 시작 시간
+        let pausedElapsed = 0;
+        let pausedTime = 0;
         let modalChart = null;
         let currentModalTarget = null;
         
         // Chart Visibility
-        let visibleIPs = new Set(); // 표시할 IP 목록
+        let visibleIPs = new Set();
         
         // Notification State
         let allNotifications = [];
@@ -290,6 +291,9 @@
             // Start time updates
             updateTime();
             timeInterval = setInterval(updateTime, 1000);
+            
+            // Load saved states
+            loadHeaderState();
         });
 
         function initializeEventListeners() {
@@ -299,8 +303,18 @@
                 headerToggle.addEventListener('click', () => {
                     const header = document.getElementById('mainHeader');
                     const icon = document.getElementById('toggleIcon');
-                    header.classList.toggle('collapsed');
-                    icon.textContent = header.classList.contains('collapsed') ? '▼' : '▲';
+                    const comparisonCard = document.getElementById('comparisonChartCard');
+                    
+                    const isCollapsed = header.classList.toggle('collapsed');
+                    icon.textContent = isCollapsed ? '▼' : '▲';
+                    
+                    // IP 비교 타임라인도 숨김/표시
+                    if (comparisonCard) {
+                        comparisonCard.style.display = isCollapsed ? 'none' : 'block';
+                    }
+                    
+                    // 상태 저장
+                    localStorage.setItem('headerCollapsed', isCollapsed ? '1' : '0');
                 });
             }
 
@@ -313,75 +327,53 @@
                     toggleBtn.className = isRunning ? 'btn btn-primary' : 'btn btn-success';
                     
                     if (isRunning) {
-                        // 재개: 데이터 업데이트 시작
                         startUpdates();
-                        
-                        // 일시정지된 시간만큼 startTime 조정
                         if (pausedTime > 0) {
                             const pauseDuration = Date.now() - pausedTime;
                             startTime += pauseDuration;
                             pausedTime = 0;
                         }
                     } else {
-                        // 일시정지: 데이터 업데이트만 중지
                         stopUpdates();
-                        
-                        // 일시정지 시작 시간 기록
                         pausedTime = Date.now();
                     }
-                    
-                    console.log('일시정지:', isRunning ? '실행' : '정지');
                 });
             }
 
             const refreshBtn = document.getElementById('refreshBtn');
             if (refreshBtn) {
-                console.log('새로고침 버튼 이벤트 리스너 등록됨');
                 refreshBtn.addEventListener('click', async function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('🔄 새로고침 버튼 클릭됨!');
                     const originalText = refreshBtn.textContent;
                     
                     try {
                         refreshBtn.textContent = '새로고침 중...';
                         refreshBtn.disabled = true;
-                        console.log('데이터 로드 시작...');
                         
-                        // 모니터링 시간 초기화
                         startTime = Date.now();
                         pausedTime = 0;
                         pausedElapsed = 0;
-                        console.log('모니터링 시간 초기화');
-                        
-                        // 즉시 시간 업데이트
                         updateTime();
                         
-                        // 기존 차트 모두 초기화
                         if (comparisonChart) {
                             comparisonChart.data.labels = [];
                             comparisonChart.data.datasets = [];
                             comparisonChart.update();
-                            console.log('비교 차트 초기화');
                         }
                         
-                        // IP 차트들 초기화
                         Object.keys(ipCharts).forEach(key => {
                             if (ipCharts[key]) {
                                 ipCharts[key].destroy();
                             }
                         });
                         ipCharts = {};
-                        console.log('IP 차트들 초기화');
                         
-                        // IP 카드 컨테이너 완전히 비우기
                         const ipCardsContainer = document.getElementById('ipCardsContainer');
                         if (ipCardsContainer) {
                             ipCardsContainer.innerHTML = '';
-                            console.log('IP 카드 컨테이너 초기화');
                         }
                         
-                        // 최소화 영역도 초기화
                         const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
                         if (minimizedCardsContainer) {
                             minimizedCardsContainer.innerHTML = '';
@@ -390,30 +382,20 @@
                         if (minimizedCardsArea) {
                             minimizedCardsArea.style.display = 'none';
                         }
-                        console.log('최소화 영역 초기화');
                         
-                        // 데이터 로드 (IP 카드들이 새로 생성됨)
                         await loadData();
-                        console.log('데이터 로드 완료');
                         
-                        // 알림 탭이 활성화되어 있으면 알림도 새로고침
                         const notificationTab = document.getElementById('notifications');
                         if (notificationTab && notificationTab.classList.contains('active')) {
-                            console.log('알림 로드 시작...');
                             await loadNotifications();
-                            console.log('알림 로드 완료');
                         }
-                        
-                        console.log('✅ 새로고침 완료');
                     } catch (error) {
-                        console.error('❌ 새로고침 실패:', error);
+                        console.error('새로고침 실패:', error);
                     } finally {
                         refreshBtn.textContent = originalText;
                         refreshBtn.disabled = false;
                     }
                 });
-            } else {
-                console.error('❌ refreshBtn 요소를 찾을 수 없음!');
             }
 
             // Sort Buttons
@@ -478,6 +460,7 @@
             const closeChartSettings = document.getElementById('closeChartSettings');
             const selectAllIPs = document.getElementById('selectAllIPs');
             const deselectAllIPs = document.getElementById('deselectAllIPs');
+            const saveChartSettings = document.getElementById('saveChartSettings');
 
             if (chartSettingsBtn) {
                 chartSettingsBtn.addEventListener('click', () => {
@@ -511,33 +494,99 @@
                 });
             }
 
-            console.log('모든 이벤트 리스너 등록 완료');
+            if (saveChartSettings) {
+                saveChartSettings.addEventListener('click', () => {
+                    saveVisibleIPsState();
+                    chartSettingsModal.classList.remove('active');
+                });
+            }
         }
 
+        // Load saved header state
+        function loadHeaderState() {
+            const collapsed = localStorage.getItem('headerCollapsed') === '1';
+            if (collapsed) {
+                const header = document.getElementById('mainHeader');
+                const icon = document.getElementById('toggleIcon');
+                const comparisonCard = document.getElementById('comparisonChartCard');
+                
+                if (header) header.classList.add('collapsed');
+                if (icon) icon.textContent = '▼';
+                if (comparisonCard) comparisonCard.style.display = 'none';
+            }
+        }
+
+        // Save visible IPs state
+        function saveVisibleIPsState() {
+            const visibleArray = Array.from(visibleIPs);
+            localStorage.setItem('visibleIPs', JSON.stringify(visibleArray));
+            console.log('필터 설정 저장:', visibleArray);
+        }
+
+        // Load visible IPs state
+        function loadVisibleIPsState() {
+            const saved = localStorage.getItem('visibleIPs');
+            if (saved) {
+                try {
+                    const visibleArray = JSON.parse(saved);
+                    visibleIPs = new Set(visibleArray);
+                    console.log('필터 설정 로드:', visibleArray);
+                    return true;
+                } catch (e) {
+                    console.error('필터 설정 로드 실패:', e);
+                }
+            }
+            return false;
+        }
+
+        // Save minimized state
+        function saveMinimizedState() {
+            const minimizedCards = document.querySelectorAll('.ip-card.minimized');
+            const minimizedIndices = Array.from(minimizedCards).map(card => card.dataset.index);
+            localStorage.setItem('minimizedCards', JSON.stringify(minimizedIndices));
+            console.log('최소화 상태 저장:', minimizedIndices);
+        }
+
+        // Load minimized state
+        function loadMinimizedState() {
+            const saved = localStorage.getItem('minimizedCards');
+            if (saved) {
+                try {
+                    const minimizedIndices = JSON.parse(saved);
+                    console.log('최소화 상태 로드:', minimizedIndices);
+                    
+                    setTimeout(() => {
+                        minimizedIndices.forEach(index => {
+                            const card = document.getElementById(`ip-card-${index}`);
+                            if (card && !card.classList.contains('minimized')) {
+                                toggleMinimize(parseInt(index));
+                            }
+                        });
+                    }, 100);
+                } catch (e) {
+                    console.error('최소화 상태 로드 실패:', e);
+                }
+            }
+        }
 
         // Time Update Functions
         function updateTime() {
             const now = new Date();
             
-            // 현재 시간 (항상 업데이트)
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
             
-            // 현재 날짜 (항상 업데이트)
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
             const day = String(now.getDate()).padStart(2, '0');
             document.getElementById('currentDate').textContent = `${year}-${month}-${day}`;
             
-            // 모니터링 경과 시간 (일시정지 시 멈춤)
             let elapsed;
             if (!isRunning && pausedTime > 0) {
-                // 일시정지 중: 일시정지 시점의 경과 시간 유지
                 elapsed = Math.floor((pausedTime - startTime) / 1000);
             } else {
-                // 실행 중: 현재까지의 경과 시간
                 elapsed = Math.floor((Date.now() - startTime) / 1000);
             }
             
@@ -638,10 +687,12 @@
         function updateUI(data) {
             if (!data || !data.targets) return;
 
-            // 처음 로드 시 또는 IP 개수가 변경된 경우 visibleIPs 초기화
-            if (visibleIPs.size === 0 || visibleIPs.size !== data.targets.length) {
-                visibleIPs.clear();
-                data.targets.forEach((_, index) => visibleIPs.add(index));
+            // 저장된 필터 상태 로드 또는 초기화
+            if (visibleIPs.size === 0) {
+                const loaded = loadVisibleIPsState();
+                if (!loaded) {
+                    data.targets.forEach((_, index) => visibleIPs.add(index));
+                }
             }
 
             // Update global stats
@@ -663,6 +714,11 @@
             // Update IP cards
             updateIPCards(data.targets);
             
+            // Load minimized state (only first time)
+            if (Object.keys(ipCharts).length === data.targets.length) {
+                loadMinimizedState();
+            }
+            
             // Update modal if open
             updateModalIfOpen();
         }
@@ -673,11 +729,9 @@
             
             comparisonChart.data.labels = labels;
             
-            // visibleIPs에 있는 것만 표시
             const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
             
             comparisonChart.data.datasets = filteredTargets.map((target) => {
-                // 원래 인덱스 찾기
                 const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
                 return {
                     label: target.name,
@@ -797,7 +851,6 @@
             card.draggable = true;
             card.dataset.index = index;
             
-            // Drag & Drop Events
             card.addEventListener('dragstart', handleDragStart);
             card.addEventListener('dragover', handleDragOver);
             card.addEventListener('drop', handleDrop);
@@ -929,24 +982,19 @@
             const minimizedCardsArea = document.getElementById('minimizedCardsArea');
             
             if (isMinimized) {
-                // 복원: 최소화 영역 → 일반 영역
                 card.classList.remove('minimized');
                 card.draggable = true;
                 ipCardsContainer.appendChild(card);
-                console.log(`IP 카드 ${index} 복원`);
             } else {
-                // 최소화: 일반 영역 → 최소화 영역
                 card.classList.add('minimized');
                 card.draggable = false;
                 minimizedCardsContainer.appendChild(card);
-                console.log(`IP 카드 ${index} 최소화`);
             }
             
-            // 최소화 영역 표시/숨김 및 카운트 업데이트
             updateMinimizedArea();
+            saveMinimizedState();
         }
 
-        // Save Minimized State
         // Update Minimized Area
         function updateMinimizedArea() {
             const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
@@ -971,11 +1019,9 @@
             const target = currentData.targets[index];
             currentModalTarget = index;
             
-            // Update modal header
             document.getElementById('modalTitle').textContent = target.name;
             document.getElementById('modalSubtitle').textContent = target.ip;
             
-            // Update stats
             document.getElementById('modalLatency').textContent = target.latency + ' ms';
             document.getElementById('modalMin').textContent = target.min + ' ms';
             document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
@@ -986,20 +1032,16 @@
             document.getElementById('modalStatus').textContent = target.online ? '온라인' : '오프라인';
             document.getElementById('modalStatus').style.color = target.online ? 'var(--success)' : 'var(--error)';
             
-            // Update details
             document.getElementById('modalTotal').textContent = target.total;
             document.getElementById('modalSuccess').textContent = target.total - target.failed;
             document.getElementById('modalFailed').textContent = target.failed;
             
-            // Last response time
             const now = new Date();
             const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
             document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
             
-            // Create modal chart
             createModalChart(target, index);
             
-            // Show modal
             document.getElementById('detailModal').classList.add('active');
         }
 
@@ -1013,7 +1055,7 @@
             currentModalTarget = null;
         }
 
-        // Create Modal Chart with Real-time Time Labels
+        // Create Modal Chart
         function createModalChart(target, index) {
             if (modalChart) {
                 modalChart.destroy();
@@ -1022,7 +1064,6 @@
             const ctx = document.getElementById('modalChart');
             const color = brightColors[index % brightColors.length];
             
-            // Generate time labels (last 60 seconds)
             const now = new Date();
             const labels = Array(60).fill('').map((_, i) => {
                 const time = new Date(now.getTime() - (59 - i) * 1000);
@@ -1095,7 +1136,6 @@
             if (currentModalTarget !== null && currentData && currentData.targets[currentModalTarget]) {
                 const target = currentData.targets[currentModalTarget];
                 
-                // Update stats
                 document.getElementById('modalLatency').textContent = target.latency + ' ms';
                 document.getElementById('modalMin').textContent = target.min + ' ms';
                 document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
@@ -1110,7 +1150,6 @@
                 document.getElementById('modalSuccess').textContent = target.total - target.failed;
                 document.getElementById('modalFailed').textContent = target.failed;
                 
-                // Update chart with real-time labels
                 if (modalChart) {
                     const now = new Date();
                     const labels = Array(60).fill('').map((_, i) => {
@@ -1123,7 +1162,6 @@
                     modalChart.update();
                 }
                 
-                // Last response time
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
                 document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
@@ -1132,14 +1170,12 @@
 
         // Update IP Card
         function updateIPCard(card, target, index) {
-            // Status (find in header or after header for minimized state)
             const statusBadge = card.querySelector(`#status-${index}`);
             if (statusBadge) {
                 statusBadge.textContent = target.online ? '온라인' : '오프라인';
                 statusBadge.className = target.online ? 'status-badge status-online' : 'status-badge status-offline';
             }
 
-            // Stats
             const latencyEl = document.getElementById(`latency-${index}`);
             if (latencyEl) latencyEl.textContent = target.latency + ' ms';
             
@@ -1152,13 +1188,11 @@
             const maxEl = document.getElementById(`max-${index}`);
             if (maxEl) maxEl.textContent = target.max + ' ms';
 
-            // Chart
             if (ipCharts[index] && !card.classList.contains('minimized')) {
                 ipCharts[index].data.datasets[0].data = target.history;
                 ipCharts[index].update();
             }
 
-            // Packet bars
             const packetsContainer = document.getElementById(`packets-${index}`);
             if (packetsContainer) {
                 packetsContainer.innerHTML = target.history.map(latency => {
@@ -1236,16 +1270,6 @@
                 </div>
             `;
         }
-
-        // Notification Filters
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                renderNotifications();
-            });
-        });
 
         // Update Loop
         function startUpdates() {

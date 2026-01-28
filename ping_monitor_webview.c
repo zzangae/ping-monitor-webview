@@ -1,5 +1,5 @@
-// ping_monitor_webview.c - 알림 기능 추가 버전 (v2.3)
-// Windows 네트워크 핑 모니터링 + HTTP 서버 + 트레이 아이콘 + 알림
+// ping_monitor_webview.c - 알림 기능 + 포트 변경 추가 버전 (v2.5)
+// Windows 네트워크 핑 모니터링 + HTTP 서버 + 트레이 아이콘 + 알림 + 포트 변경
 
 #include <winsock2.h>
 #include <windows.h>
@@ -37,12 +37,15 @@
 #define ID_TRAY_EXIT 1002
 #define ID_TRAY_START 1003
 #define ID_TRAY_BROWSER 1004
-#define ID_TRAY_NOTIFICATIONS 1005 // 🆕 알림 토글
+#define ID_TRAY_NOTIFICATIONS 1005
+#define ID_TRAY_CHANGE_PORT 1006
 
 // HTTP 서버 설정
 #define HTTP_PORT 8080
+#define HTTP_PORT_MIN 8000
+#define HTTP_PORT_MAX 9000
 
-// 🆕 알림 설정 기본값
+// 알림 설정 기본값
 #define DEFAULT_NOTIFICATION_ENABLED TRUE
 #define DEFAULT_NOTIFICATION_COOLDOWN 60
 #define DEFAULT_NOTIFY_ON_TIMEOUT TRUE
@@ -75,14 +78,14 @@ typedef struct
     DWORD history[MAX_HISTORY];
     int historyIndex;
 
-    // 🆕 알림 관련
+    // 알림 관련
     time_t lastNotificationTime;
     int previousOnline;
     int consecutiveFailures;
     int consecutiveSuccesses;
 } IPTarget;
 
-// 🆕 알림 설정 구조체
+// 알림 설정 구조체
 typedef struct
 {
     BOOL enabled;
@@ -100,8 +103,9 @@ static BOOL g_isRunning = FALSE;
 static HWND g_hwnd = NULL;
 static NOTIFYICONDATAW g_nid = {0};
 static wchar_t g_exePath[MAX_PATH] = {0};
+static int g_currentPort = HTTP_PORT;
 
-// 🆕 알림 설정 전역 변수
+// 알림 설정 전역 변수
 static NotificationSettings g_notifSettings = {
     DEFAULT_NOTIFICATION_ENABLED,
     DEFAULT_NOTIFICATION_COOLDOWN,
@@ -109,7 +113,7 @@ static NotificationSettings g_notifSettings = {
     DEFAULT_NOTIFY_ON_RECOVERY,
     DEFAULT_CONSECUTIVE_FAILURES};
 
-// 🆕 알림 로그 파일 잠금용
+// 알림 로그 파일 잠금용
 static CRITICAL_SECTION g_logLock;
 
 // 함수 선언
@@ -128,11 +132,351 @@ DWORD WINAPI MonitoringThread(LPVOID lpParam);
 void OpenBrowser(const wchar_t *url);
 void KillPreviousInstance(void);
 
-// 🆕 알림 관련 함수
+// 알림 관련 함수
 void LoadNotificationSettings(void);
 void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags);
 void CheckAndNotify(IPTarget *target);
 void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr);
+
+// 포트 관련 함수
+BOOL IsPortAvailable(int port);
+int FindAvailablePort(int startPort, int endPort);
+void ChangeServerPort(HWND hwnd);
+BOOL RestartServer(int newPort);
+
+// 포트 사용 가능 여부 확인
+BOOL IsPortAvailable(int port)
+{
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET)
+    {
+        return FALSE;
+    }
+
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    addr.sin_port = htons(port);
+
+    int result = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
+    closesocket(sock);
+
+    return (result == 0);
+}
+
+// 사용 가능한 포트 찾기
+int FindAvailablePort(int startPort, int endPort)
+{
+    for (int port = startPort; port <= endPort; port++)
+    {
+        if (IsPortAvailable(port))
+        {
+            return port;
+        }
+    }
+    return -1;
+}
+
+// 서버 재시작
+BOOL RestartServer(int newPort)
+{
+    wchar_t exeDir[MAX_PATH];
+    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
+    PathRemoveFileSpecW(exeDir);
+
+    // 기존 서버 중지
+    StopHttpServer();
+    Sleep(500);
+
+    // 새 포트로 서버 시작
+    if (StartHttpServer(newPort, exeDir))
+    {
+        g_currentPort = newPort;
+        wprintf(L"서버 포트 변경: %d\n", newPort);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+// 포트 입력 다이얼로그 프로시저
+INT_PTR CALLBACK PortDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static int *pNewPort = NULL;
+
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+        pNewPort = (int *)lParam;
+
+        // 사용 가능한 포트 찾기
+        int availablePort = FindAvailablePort(HTTP_PORT_MIN, HTTP_PORT_MAX);
+
+        // 현재 포트 정보 표시
+        wchar_t infoText[512];
+        if (availablePort != -1)
+        {
+            swprintf(infoText, 512,
+                     L"현재 포트: %d\n\n권장 포트: %d (사용 가능)\n\n새 포트 번호를 입력하세요 (%d-%d):",
+                     g_currentPort, availablePort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+        }
+        else
+        {
+            swprintf(infoText, 512,
+                     L"현재 포트: %d\n\n경고: 사용 가능한 포트를 찾을 수 없습니다.\n\n새 포트 번호를 입력하세요 (%d-%d):",
+                     g_currentPort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+        }
+        SetDlgItemTextW(hDlg, 1001, infoText);
+
+        // 권장 포트 또는 현재 포트를 입력 필드에 설정
+        wchar_t portText[16];
+        swprintf(portText, 16, L"%d", availablePort != -1 ? availablePort : g_currentPort);
+        SetDlgItemTextW(hDlg, 1002, portText);
+
+        // 입력 필드에 포커스
+        SetFocus(GetDlgItem(hDlg, 1002));
+        SendDlgItemMessageW(hDlg, 1002, EM_SETSEL, 0, -1);
+
+        return FALSE;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK)
+        {
+            wchar_t buffer[16];
+            GetDlgItemTextW(hDlg, 1002, buffer, 16);
+            int newPort = _wtoi(buffer);
+
+            if (newPort >= HTTP_PORT_MIN && newPort <= HTTP_PORT_MAX)
+            {
+                *pNewPort = newPort;
+                EndDialog(hDlg, IDOK);
+            }
+            else
+            {
+                wchar_t errorMsg[256];
+                swprintf(errorMsg, 256, L"포트는 %d부터 %d 사이여야 합니다.", HTTP_PORT_MIN, HTTP_PORT_MAX);
+                MessageBoxW(hDlg, errorMsg, L"입력 오류", MB_OK | MB_ICONWARNING);
+            }
+            return TRUE;
+        }
+        else if (LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+// 포트 입력 다이얼로그 생성
+HWND CreatePortDialog(HWND hwndParent, int *pNewPort)
+{
+// 다이얼로그 템플릿을 메모리에 생성
+#pragma pack(push, 1)
+    struct
+    {
+        DLGTEMPLATE dlg;
+        WORD menu;
+        WORD windowClass;
+        WCHAR title[32];
+        WORD pointSize;
+        WCHAR font[32];
+    } dlgTemplate;
+#pragma pack(pop)
+
+    memset(&dlgTemplate, 0, sizeof(dlgTemplate));
+
+    dlgTemplate.dlg.style = DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    dlgTemplate.dlg.dwExtendedStyle = 0;
+    dlgTemplate.dlg.cdit = 3;
+    dlgTemplate.dlg.x = 0;
+    dlgTemplate.dlg.y = 0;
+    dlgTemplate.dlg.cx = 280;
+    dlgTemplate.dlg.cy = 140;
+    dlgTemplate.menu = 0;
+    dlgTemplate.windowClass = 0;
+    wcscpy(dlgTemplate.title, L"포트 변경");
+    dlgTemplate.pointSize = 9;
+    wcscpy(dlgTemplate.font, L"Malgun Gothic");
+
+    // 다이얼로그 표시
+    return (HWND)DialogBoxIndirectParamW(GetModuleHandle(NULL), &dlgTemplate.dlg, hwndParent, PortDialogProc, (LPARAM)pNewPort);
+}
+
+// 포트 변경 다이얼로그
+void ChangeServerPort(HWND hwnd)
+{
+    // 간단한 입력 창 생성
+    HWND hDlg = CreateWindowExW(
+        WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
+        L"#32770", // 다이얼로그 클래스
+        L"포트 변경",
+        WS_VISIBLE | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_CENTER,
+        0, 0, 350, 230,
+        hwnd,
+        NULL,
+        GetModuleHandle(NULL),
+        NULL);
+
+    if (!hDlg)
+        return;
+
+    // 화면 중앙 배치
+    RECT rcDlg, rcOwner;
+    GetWindowRect(hDlg, &rcDlg);
+    GetWindowRect(GetDesktopWindow(), &rcOwner);
+    SetWindowPos(hDlg, HWND_TOP,
+                 (rcOwner.right - rcDlg.right + rcDlg.left) / 2,
+                 (rcOwner.bottom - rcDlg.bottom + rcDlg.top) / 2,
+                 0, 0, SWP_NOSIZE);
+
+    // Static 텍스트 (안내문)
+    int availablePort = FindAvailablePort(HTTP_PORT_MIN, HTTP_PORT_MAX);
+    wchar_t infoText[512];
+    if (availablePort != -1)
+    {
+        swprintf(infoText, 512,
+                 L"현재 포트: %d\n\n"
+                 L"권장 포트: %d (사용 가능)\n\n"
+                 L"새 포트 번호를 입력하세요 (%d-%d):",
+                 g_currentPort, availablePort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+    }
+    else
+    {
+        swprintf(infoText, 512,
+                 L"현재 포트: %d\n\n"
+                 L"경고: 사용 가능한 포트를 찾을 수 없습니다.\n\n"
+                 L"새 포트 번호를 입력하세요 (%d-%d):",
+                 g_currentPort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+    }
+
+    HWND hStatic = CreateWindowW(
+        L"STATIC", infoText,
+        WS_VISIBLE | WS_CHILD | SS_LEFT,
+        20, 20, 300, 80,
+        hDlg, (HMENU)1001, GetModuleHandle(NULL), NULL);
+
+    // Edit 컨트롤 (포트 입력)
+    wchar_t portText[16];
+    swprintf(portText, 16, L"%d", availablePort != -1 ? availablePort : g_currentPort);
+
+    HWND hEdit = CreateWindowW(
+        L"EDIT", portText,
+        WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER | ES_CENTER,
+        20, 110, 100, 25,
+        hDlg, (HMENU)1002, GetModuleHandle(NULL), NULL);
+
+    // 확인 버튼
+    HWND hOK = CreateWindowW(
+        L"BUTTON", L"확인",
+        WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        140, 110, 80, 25,
+        hDlg, (HMENU)IDOK, GetModuleHandle(NULL), NULL);
+
+    // 취소 버튼
+    HWND hCancel = CreateWindowW(
+        L"BUTTON", L"취소",
+        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+        230, 110, 80, 25,
+        hDlg, (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL);
+
+    // 폰트 설정
+    HFONT hFont = CreateFontW(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Malgun Gothic");
+    SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(hEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(hOK, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(hCancel, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    // 포커스 설정
+    SetFocus(hEdit);
+    SendMessage(hEdit, EM_SETSEL, 0, -1);
+
+    // 메시지 루프
+    MSG msg;
+    BOOL result = FALSE;
+    int newPort = 0;
+
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        if (msg.hwnd == hDlg || IsChild(hDlg, msg.hwnd))
+        {
+            if (msg.message == WM_COMMAND)
+            {
+                if (LOWORD(msg.wParam) == IDOK)
+                {
+                    wchar_t buffer[16];
+                    GetWindowTextW(hEdit, buffer, 16);
+                    newPort = _wtoi(buffer);
+
+                    if (newPort >= HTTP_PORT_MIN && newPort <= HTTP_PORT_MAX)
+                    {
+                        if (IsPortAvailable(newPort) || newPort == g_currentPort)
+                        {
+                            result = TRUE;
+                            DestroyWindow(hDlg);
+                            break;
+                        }
+                        else
+                        {
+                            wchar_t errorMsg[256];
+                            swprintf(errorMsg, 256, L"포트 %d는 이미 사용 중입니다.\n\n다른 포트를 입력하세요.", newPort);
+                            MessageBoxW(hDlg, errorMsg, L"포트 사용 중", MB_OK | MB_ICONWARNING);
+                        }
+                    }
+                    else
+                    {
+                        wchar_t errorMsg[256];
+                        swprintf(errorMsg, 256, L"포트는 %d부터 %d 사이여야 합니다.", HTTP_PORT_MIN, HTTP_PORT_MAX);
+                        MessageBoxW(hDlg, errorMsg, L"입력 오류", MB_OK | MB_ICONWARNING);
+                    }
+                }
+                else if (LOWORD(msg.wParam) == IDCANCEL)
+                {
+                    DestroyWindow(hDlg);
+                    break;
+                }
+            }
+            else if (msg.message == WM_CLOSE)
+            {
+                DestroyWindow(hDlg);
+                break;
+            }
+
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+
+    DeleteObject(hFont);
+
+    // 결과 처리
+    if (result && newPort > 0)
+    {
+        if (RestartServer(newPort))
+        {
+            wchar_t successMsg[256];
+            swprintf(successMsg, 256,
+                     L"포트가 %d로 변경되었습니다.\n\n"
+                     L"새 주소: http://localhost:%d",
+                     newPort, newPort);
+            MessageBoxW(hwnd, successMsg, L"성공", MB_OK | MB_ICONINFORMATION);
+
+            // 브라우저 열기
+            wchar_t url[256];
+            swprintf(url, 256, L"http://localhost:%d/graph.html", newPort);
+            OpenBrowser(url);
+        }
+        else
+        {
+            MessageBoxW(hwnd, L"포트 변경 실패. 다른 포트를 시도해주세요.", L"오류", MB_OK | MB_ICONERROR);
+        }
+    }
+}
 
 // 설정 파일 로드
 void LoadConfigFromFile(const wchar_t *configFile)
@@ -164,36 +508,30 @@ void LoadConfigFromFile(const wchar_t *configFile)
 
     while (fgetws(line, 512, file) && g_targetCount < MAX_IP_COUNT)
     {
-        // 줄바꿈 제거
         line[wcscspn(line, L"\r\n")] = 0;
 
-        // 빈 줄이나 주석 스킵
         if (line[0] == 0 || line[0] == L'#' || line[0] == L';')
         {
             continue;
         }
 
-        // 🆕 [Settings] 섹션 감지
         if (wcsstr(line, L"[Settings]") || wcsstr(line, L"[SETTINGS]"))
         {
             inSettingsSection = TRUE;
             continue;
         }
 
-        // 다른 섹션 시작 시 Settings 섹션 종료
         if (line[0] == L'[')
         {
             inSettingsSection = FALSE;
             continue;
         }
 
-        // 🆕 Settings 섹션 파싱
         if (inSettingsSection)
         {
             wchar_t key[128], value[128];
             if (swscanf(line, L"%127[^=]=%127s", key, value) == 2)
             {
-                // 공백 제거
                 wchar_t *k = key;
                 while (*k == L' ' || *k == L'\t')
                     k++;
@@ -231,20 +569,17 @@ void LoadConfigFromFile(const wchar_t *configFile)
             }
             else
             {
-                // key=value 형식이 아니면 Settings 섹션 종료 (IP 라인 시작)
                 if (wcschr(line, L','))
                 {
                     inSettingsSection = FALSE;
-                    // 아래로 진행하여 IP 파싱
                 }
                 else
                 {
-                    continue; // 빈 줄이나 다른 형식은 스킵
+                    continue;
                 }
             }
         }
 
-        // IP 설정 파싱
         wchar_t *comma = wcschr(line, L',');
         if (comma)
         {
@@ -252,7 +587,6 @@ void LoadConfigFromFile(const wchar_t *configFile)
             wchar_t *ip = line;
             wchar_t *name = comma + 1;
 
-            // 공백 제거
             while (*ip == L' ' || *ip == L'\t')
                 ip++;
             while (*name == L' ' || *name == L'\t')
@@ -261,7 +595,6 @@ void LoadConfigFromFile(const wchar_t *configFile)
             wcscpy(g_targets[g_targetCount].ip, ip);
             wcscpy(g_targets[g_targetCount].name, name);
 
-            // 초기화
             g_targets[g_targetCount].latency = 0;
             g_targets[g_targetCount].online = 0;
             g_targets[g_targetCount].total = 0;
@@ -271,7 +604,6 @@ void LoadConfigFromFile(const wchar_t *configFile)
             g_targets[g_targetCount].avg = 0.0;
             g_targets[g_targetCount].historyIndex = 0;
 
-            // 🆕 알림 관련 초기화
             g_targets[g_targetCount].lastNotificationTime = 0;
             g_targets[g_targetCount].previousOnline = -1;
             g_targets[g_targetCount].consecutiveFailures = 0;
@@ -289,20 +621,16 @@ void LoadConfigFromFile(const wchar_t *configFile)
 
 void LoadConfig(void)
 {
-    // 초기화
     g_targetCount = 0;
 
-    // 1. 기본 설정 파일 로드 (ping_config.ini)
     wprintf(L"==========================================\n");
     wprintf(L"설정 파일 로딩 시작\n");
     wprintf(L"==========================================\n");
     LoadConfigFromFile(CONFIG_FILE);
 
-    // 2. 내부 설정 파일 로드 (int_config.ini) - 선택적
     wprintf(L"------------------------------------------\n");
     LoadConfigFromFile(INT_CONFIG_FILE);
 
-    // 최종 결과 출력
     wprintf(L"==========================================\n");
     wprintf(L"설정 로드 완료: 총 %d개 타겟\n", g_targetCount);
     wprintf(L"알림 설정: %s (쿨다운: %d초, 연속실패: %d회)\n",
@@ -312,7 +640,7 @@ void LoadConfig(void)
     wprintf(L"==========================================\n");
 }
 
-// 🆕 트레이 아이콘 풍선 알림 표시
+// 트레이 아이콘 풍선 알림 표시
 void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags)
 {
     if (!g_notifSettings.enabled)
@@ -323,8 +651,8 @@ void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD
     nid.hWnd = g_hwnd;
     nid.uID = ID_TRAY_ICON;
     nid.uFlags = NIF_INFO;
-    nid.dwInfoFlags = infoFlags; // NIIF_WARNING, NIIF_ERROR, NIIF_INFO
-    nid.uTimeout = 5000;         // 5초 표시 (Windows 7 이하)
+    nid.dwInfoFlags = infoFlags;
+    nid.uTimeout = 5000;
 
     wcsncpy(nid.szInfoTitle, title, ARRAYSIZE(nid.szInfoTitle) - 1);
     nid.szInfoTitle[ARRAYSIZE(nid.szInfoTitle) - 1] = 0;
@@ -335,7 +663,7 @@ void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD
     Shell_NotifyIconW(NIM_MODIFY, &nid);
 }
 
-// 🆕 타임아웃 및 복구 감지 후 알림
+// 타임아웃 및 복구 감지 후 알림
 void CheckAndNotify(IPTarget *target)
 {
     if (!g_notifSettings.enabled)
@@ -344,19 +672,16 @@ void CheckAndNotify(IPTarget *target)
     time_t currentTime = time(NULL);
     time_t timeSinceLastNotification = currentTime - target->lastNotificationTime;
 
-    // 현재 시간 문자열 생성
     struct tm *timeInfo = localtime(&currentTime);
     wchar_t timeStr[32];
     wcsftime(timeStr, 32, L"%H:%M:%S", timeInfo);
 
     wchar_t message[256];
 
-    // 🔴 타임아웃 감지 (연속 실패 기반)
     if (g_notifSettings.notifyOnTimeout &&
         target->consecutiveFailures == g_notifSettings.consecutiveFailuresThreshold)
     {
 
-        // 쿨다운 체크
         if (timeSinceLastNotification < g_notifSettings.cooldown)
         {
             return;
@@ -371,11 +696,9 @@ void CheckAndNotify(IPTarget *target)
 
         wprintf(L"[알림 %s] 타임아웃: %s (%s)\n", timeStr, target->name, target->ip);
 
-        // 알림 로그 저장
         SaveNotificationLog(L"timeout", target->name, target->ip, timeStr);
     }
 
-    // 🟢 복구 감지 (오프라인 → 온라인) - 쿨다운 무시!
     else if (g_notifSettings.notifyOnRecovery &&
              target->previousOnline == 0 && target->online == 1 &&
              target->total > g_notifSettings.consecutiveFailuresThreshold)
@@ -390,18 +713,15 @@ void CheckAndNotify(IPTarget *target)
 
         wprintf(L"[알림 %s] 복구: %s (%s)\n", timeStr, target->name, target->ip);
 
-        // 알림 로그 저장
         SaveNotificationLog(L"recovery", target->name, target->ip, timeStr);
     }
 
-    // 상태 업데이트
     target->previousOnline = target->online;
 }
 
-// 🆕 알림 로그 JSON 파일에 저장
+// 알림 로그 JSON 파일에 저장
 void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr)
 {
-    // 크리티컬 섹션 진입 (파일 쓰기 동기화)
     EnterCriticalSection(&g_logLock);
 
     wchar_t exeDir[MAX_PATH];
@@ -411,12 +731,10 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
     wchar_t logPath[MAX_PATH];
     swprintf(logPath, MAX_PATH, L"%s\\notification_log.json", exeDir);
 
-    // 기존 로그 읽기
-    wchar_t logData[50000] = L"[]"; // 빈 배열로 시작
+    wchar_t logData[50000] = L"[]";
     FILE *readFile = _wfopen(logPath, L"r, ccs=UTF-8");
     if (readFile)
     {
-        // 파일 전체 읽기 (여러 줄)
         wchar_t *ptr = logData;
         size_t remaining = 49999;
         while (remaining > 0 && fgetws(ptr, remaining, readFile))
@@ -425,21 +743,18 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
             ptr += len;
             remaining -= len;
         }
-        *ptr = 0; // NULL 종료
+        *ptr = 0;
         fclose(readFile);
     }
 
-    // 현재 날짜 추가
     time_t now = time(NULL);
     struct tm *timeInfo = localtime(&now);
     wchar_t dateStr[32];
     wcsftime(dateStr, 32, L"%Y-%m-%d", timeInfo);
 
-    // JSON 배열 끝에 새 항목 추가
     wchar_t *insertPos = wcsstr(logData, L"]");
     if (insertPos)
     {
-        // 배열이 비어있지 않으면 쉼표 추가
         BOOL isEmpty = (wcsstr(logData, L"[]") != NULL);
 
         wchar_t newEntry[512];
@@ -454,14 +769,12 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
                  isEmpty ? L"" : L",",
                  type, name, ip, timeStr, dateStr);
 
-        // ] 위치에 새 항목 삽입
         size_t beforeLen = insertPos - logData;
         wchar_t result[51000];
         wcsncpy(result, logData, beforeLen);
         result[beforeLen] = 0;
         wcscat(result, newEntry);
 
-        // 임시 파일에 쓰기
         wchar_t tmpPath[MAX_PATH];
         swprintf(tmpPath, MAX_PATH, L"%s\\notification_log.json.tmp", exeDir);
 
@@ -471,13 +784,11 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
             fwprintf(writeFile, L"%s", result);
             fclose(writeFile);
 
-            // 원자적 교체
             DeleteFileW(logPath);
             MoveFileW(tmpPath, logPath);
         }
     }
 
-    // 크리티컬 섹션 종료
     LeaveCriticalSection(&g_logLock);
 }
 
@@ -490,7 +801,6 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
         return FALSE;
     }
 
-    // IP 주소 변환
     char ipStr[64];
     WideCharToMultiByte(CP_UTF8, 0, ip, -1, ipStr, sizeof(ipStr), NULL, NULL);
 
@@ -501,7 +811,6 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
         return FALSE;
     }
 
-    // 핑 보내기
     char sendData[32] = "PingMonitorData";
     DWORD replySize = sizeof(ICMP_ECHO_REPLY) + sizeof(sendData);
     LPVOID replyBuffer = malloc(replySize);
@@ -550,11 +859,9 @@ void UpdateTarget(IPTarget *target, BOOL success, DWORD latency)
         target->latency = latency;
         target->online = 1;
 
-        // 🆕 연속 성공/실패 카운트
         target->consecutiveSuccesses++;
         target->consecutiveFailures = 0;
 
-        // 통계 업데이트
         if (target->min == 0 || latency < target->min)
             target->min = latency;
         if (latency > target->max)
@@ -568,16 +875,13 @@ void UpdateTarget(IPTarget *target, BOOL success, DWORD latency)
         target->latency = 0;
         target->online = 0;
 
-        // 🆕 연속 성공/실패 카운트
         target->consecutiveFailures++;
         target->consecutiveSuccesses = 0;
     }
 
-    // 히스토리 업데이트
     target->history[target->historyIndex] = target->latency;
     target->historyIndex = (target->historyIndex + 1) % MAX_HISTORY;
 
-    // 🆕 알림 체크
     CheckAndNotify(target);
 }
 
@@ -586,7 +890,6 @@ void BuildJsonData(wchar_t *buffer, size_t bufferSize)
 {
     int offset = 0;
 
-    // JSON 시작
     offset += swprintf(buffer + offset, bufferSize - offset,
                        L"{\n  \"running\": %s,\n  \"elapsed\": %d,\n  \"total\": %d,\n  \"loop\": %s,\n",
                        g_isRunning ? L"true" : L"false",
@@ -594,7 +897,6 @@ void BuildJsonData(wchar_t *buffer, size_t bufferSize)
                        g_targetCount > 0 ? g_targets[0].total : 0,
                        g_timeSettings.loop ? L"true" : L"false");
 
-    // 타겟 배열
     offset += swprintf(buffer + offset, bufferSize - offset, L"  \"targets\": [\n");
 
     for (int i = 0; i < g_targetCount; i++)
@@ -615,7 +917,6 @@ void BuildJsonData(wchar_t *buffer, size_t bufferSize)
                            t->ip, t->name, t->latency, t->online,
                            t->total, t->success, t->min, t->max, t->avg);
 
-        // 히스토리 배열
         offset += swprintf(buffer + offset, bufferSize - offset, L"      \"history\": [");
 
         for (int j = 0; j < MAX_HISTORY; j++)
@@ -655,7 +956,6 @@ void SendDataToWebView(void)
     swprintf(jsonPath, MAX_PATH, L"%s\\%s", exeDir, JSON_FILE);
     swprintf(tmpPath, MAX_PATH, L"%s\\%s.tmp", exeDir, JSON_FILE);
 
-    // JSON 데이터 생성 (10MB 버퍼)
     size_t bufferSize = 10 * 1024 * 1024;
     wchar_t *jsonData = (wchar_t *)malloc(bufferSize);
     if (!jsonData)
@@ -663,14 +963,12 @@ void SendDataToWebView(void)
 
     BuildJsonData(jsonData, bufferSize / sizeof(wchar_t));
 
-    // 임시 파일에 쓰기
     FILE *tmpFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
     if (tmpFile)
     {
         fwprintf(tmpFile, L"%s", jsonData);
         fclose(tmpFile);
 
-        // 원자적으로 파일 교체
         DeleteFileW(jsonPath);
         MoveFileW(tmpPath, jsonPath);
     }
@@ -683,7 +981,6 @@ DWORD WINAPI MonitoringThread(LPVOID lpParam)
 {
     while (g_isRunning)
     {
-        // 모든 타겟 핑
         for (int i = 0; i < g_targetCount; i++)
         {
             DWORD latency = 0;
@@ -691,10 +988,8 @@ DWORD WINAPI MonitoringThread(LPVOID lpParam)
             UpdateTarget(&g_targets[i], success, latency);
         }
 
-        // JSON 데이터 전송
         SendDataToWebView();
 
-        // 대기
         Sleep(g_timeSettings.pingInterval);
     }
 
@@ -712,7 +1007,6 @@ void StartMonitoring(void)
 
     wprintf(L"모니터링 시작\n");
 
-    // 트레이 아이콘 툴팁 업데이트
     wcscpy(g_nid.szTip, L"Ping Monitor - 실행 중");
     Shell_NotifyIconW(NIM_MODIFY, &g_nid);
 }
@@ -726,7 +1020,6 @@ void StopMonitoring(void)
     g_isRunning = FALSE;
     wprintf(L"모니터링 중지\n");
 
-    // 트레이 아이콘 툴팁 업데이트
     wcscpy(g_nid.szTip, L"Ping Monitor - 중지됨");
     Shell_NotifyIconW(NIM_MODIFY, &g_nid);
 }
@@ -756,19 +1049,19 @@ void ShowTrayMenu(HWND hwnd)
 {
     HMENU hMenu = CreatePopupMenu();
 
-    // 메뉴 항목
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_START, g_isRunning ? L"일시정지" : L"시작");
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_BROWSER, L"브라우저 열기");
 
-    // 🆕 알림 토글
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     UINT checkFlag = g_notifSettings.enabled ? MF_CHECKED : MF_UNCHECKED;
     AppendMenuW(hMenu, MF_STRING | checkFlag, ID_TRAY_NOTIFICATIONS, L"알림 활성화");
 
     AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING, ID_TRAY_CHANGE_PORT, L"포트 변경...");
+
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"종료");
 
-    // 커서 위치에 메뉴 표시
     POINT pt;
     GetCursorPos(&pt);
     SetForegroundWindow(hwnd);
@@ -811,7 +1104,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         else if (lParam == WM_LBUTTONDBLCLK)
         {
             wchar_t url[256];
-            swprintf(url, 256, L"http://localhost:%d/graph.html", HTTP_PORT);
+            swprintf(url, 256, L"http://localhost:%d/graph.html", g_currentPort);
             OpenBrowser(url);
         }
         break;
@@ -833,23 +1126,25 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case ID_TRAY_BROWSER:
         {
             wchar_t url[256];
-            swprintf(url, 256, L"http://localhost:%d/graph.html", HTTP_PORT);
+            swprintf(url, 256, L"http://localhost:%d/graph.html", g_currentPort);
             OpenBrowser(url);
             break;
         }
 
-        // 🆕 알림 토글
         case ID_TRAY_NOTIFICATIONS:
             g_notifSettings.enabled = !g_notifSettings.enabled;
             wprintf(L"알림: %s\n", g_notifSettings.enabled ? L"활성화" : L"비활성화");
 
-            // 설정 변경 알림
             if (g_notifSettings.enabled)
             {
                 ShowBalloonNotification(L"알림 활성화",
                                         L"네트워크 타임아웃 및 복구 알림이 활성화되었습니다.",
                                         NIIF_INFO);
             }
+            break;
+
+        case ID_TRAY_CHANGE_PORT:
+            ChangeServerPort(hwnd);
             break;
 
         case ID_TRAY_EXIT:
@@ -872,7 +1167,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 // 메인 함수
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
-    // Winsock 초기화
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
@@ -880,18 +1174,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         return 1;
     }
 
-    // 크리티컬 섹션 초기화
     InitializeCriticalSection(&g_logLock);
 
-    // 이전 인스턴스 종료
     KillPreviousInstance();
 
-    // 실행 파일 경로 얻기
     wchar_t exeDir[MAX_PATH];
     GetModuleFileNameW(NULL, exeDir, MAX_PATH);
     PathRemoveFileSpecW(exeDir);
 
-    // 설정 로드
     LoadConfig();
 
     if (g_targetCount == 0)
@@ -902,33 +1192,50 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         return 1;
     }
 
-    // HTTP 서버 시작
     wprintf(L"실행 경로: %s\n", exeDir);
     wprintf(L"HTTP 서버 시작 시도 (포트: %d)...\n", HTTP_PORT);
 
     if (!StartHttpServer(HTTP_PORT, exeDir))
     {
-        DWORD error = GetLastError();
-        wchar_t errorMsg[512];
-        swprintf(errorMsg, 512,
-                 L"HTTP 서버 시작 실패\n\n"
-                 L"포트: %d\n"
-                 L"경로: %s\n"
-                 L"에러 코드: %lu\n\n"
-                 L"해결 방법:\n"
-                 L"1. 포트 %d가 사용 중인지 확인\n"
-                 L"2. 이전 프로세스를 종료\n"
-                 L"3. graph.html 파일 존재 확인",
-                 HTTP_PORT, exeDir, error, HTTP_PORT);
-        MessageBoxW(NULL, errorMsg, L"오류", MB_OK | MB_ICONERROR);
-        DeleteCriticalSection(&g_logLock);
-        WSACleanup();
-        return 1;
+        wprintf(L"기본 포트 %d 사용 불가. 대체 포트 검색 중...\n", HTTP_PORT);
+
+        int availablePort = FindAvailablePort(HTTP_PORT_MIN, HTTP_PORT_MAX);
+        if (availablePort != -1)
+        {
+            wprintf(L"사용 가능한 포트 발견: %d\n", availablePort);
+            if (StartHttpServer(availablePort, exeDir))
+            {
+                g_currentPort = availablePort;
+                wprintf(L"HTTP 서버 시작 성공: http://localhost:%d\n", availablePort);
+            }
+            else
+            {
+                MessageBoxW(NULL, L"HTTP 서버 시작 실패", L"오류", MB_OK | MB_ICONERROR);
+                DeleteCriticalSection(&g_logLock);
+                WSACleanup();
+                return 1;
+            }
+        }
+        else
+        {
+            wchar_t errorMsg[512];
+            swprintf(errorMsg, 512,
+                     L"HTTP 서버 시작 실패\n\n"
+                     L"포트 %d-%d 범위에서 사용 가능한 포트를 찾을 수 없습니다.\n\n"
+                     L"다른 프로그램이 해당 포트를 사용 중일 수 있습니다.",
+                     HTTP_PORT_MIN, HTTP_PORT_MAX);
+            MessageBoxW(NULL, errorMsg, L"오류", MB_OK | MB_ICONERROR);
+            DeleteCriticalSection(&g_logLock);
+            WSACleanup();
+            return 1;
+        }
+    }
+    else
+    {
+        g_currentPort = HTTP_PORT;
+        wprintf(L"HTTP 서버 시작 성공: http://localhost:%d\n", HTTP_PORT);
     }
 
-    wprintf(L"HTTP 서버 시작 성공: http://localhost:%d\n", HTTP_PORT);
-
-    // 윈도우 클래스 등록
     WNDCLASSW wc = {0};
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
@@ -943,7 +1250,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         return 1;
     }
 
-    // 숨김 윈도우 생성
     g_hwnd = CreateWindowW(
         L"PingMonitorClass",
         L"Ping Monitor",
@@ -961,18 +1267,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         return 1;
     }
 
-    // 창 숨김 (트레이만 표시)
     ShowWindow(g_hwnd, SW_HIDE);
 
-    // 모니터링 자동 시작
     StartMonitoring();
 
-    // 브라우저 자동 열기
     wchar_t url[256];
-    swprintf(url, 256, L"http://localhost:%d/graph.html", HTTP_PORT);
+    swprintf(url, 256, L"http://localhost:%d/graph.html", g_currentPort);
     OpenBrowser(url);
 
-    // 메시지 루프
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
@@ -980,7 +1282,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         DispatchMessage(&msg);
     }
 
-    // 정리
     StopMonitoring();
     StopHttpServer();
     DeleteCriticalSection(&g_logLock);
