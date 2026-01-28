@@ -101,12 +101,12 @@ typedef struct
 // 전역 변수
 static IPTarget g_targets[MAX_IP_COUNT];
 static int g_targetCount = 0;
-static TimeSettings g_timeSettings = {1000, 0, TRUE};
+static TimeSettings g_timeSettings = { 1000, 0, TRUE };
 static BOOL g_isRunning = FALSE;
 static HWND g_hwnd = NULL;
 HWND g_mainHwnd = NULL; // HTTP 서버에서 접근 가능
-static NOTIFYICONDATAW g_nid = {0};
-static wchar_t g_exePath[MAX_PATH] = {0};
+static NOTIFYICONDATAW g_nid = { 0 };
+static wchar_t g_exePath[MAX_PATH] = { 0 };
 static int g_currentPort = HTTP_PORT;
 
 // 알림 설정 전역 변수
@@ -115,37 +115,38 @@ static NotificationSettings g_notifSettings = {
     DEFAULT_NOTIFICATION_COOLDOWN,
     DEFAULT_NOTIFY_ON_TIMEOUT,
     DEFAULT_NOTIFY_ON_RECOVERY,
-    DEFAULT_CONSECUTIVE_FAILURES};
+    DEFAULT_CONSECUTIVE_FAILURES };
 
 // 알림 로그 파일 잠금용
 static CRITICAL_SECTION g_logLock;
 
 // 함수 선언
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-void LoadConfigFromFile(const wchar_t *configFile);
+void LoadConfigFromFile(const wchar_t* configFile);
 void LoadConfig(void);
 void InitTrayIcon(HWND hwnd);
 void RemoveTrayIcon(void);
 void ShowTrayMenu(HWND hwnd);
-BOOL DoPing(const wchar_t *ip, DWORD *latency);
-void UpdateTarget(IPTarget *target, BOOL success, DWORD latency);
+BOOL DoPing(const wchar_t* ip, DWORD* latency);
+void UpdateTarget(IPTarget* target, BOOL success, DWORD latency);
 void SendDataToWebView(void);
 void StartMonitoring(void);
 void StopMonitoring(void);
 DWORD WINAPI MonitoringThread(LPVOID lpParam);
-void OpenBrowser(const wchar_t *url);
+void OpenBrowser(const wchar_t* url);
 void KillPreviousInstance(void);
 BOOL CheckRequiredFiles(void);
 
 // 알림 관련 함수
 void LoadNotificationSettings(void);
-void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags);
-void CheckAndNotify(IPTarget *target);
-void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr);
+void ShowBalloonNotification(const wchar_t* title, const wchar_t* message, DWORD infoFlags);
+void CheckAndNotify(IPTarget* target);
+void SaveNotificationLog(const wchar_t* type, const wchar_t* name, const wchar_t* ip, const wchar_t* timeStr);
 
 // 포트 관련 함수
 BOOL IsPortAvailable(int port);
 int FindAvailablePort(int startPort, int endPort);
+LRESULT CALLBACK PortDialogProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void ChangeServerPort(HWND hwnd);
 BOOL RestartServer(int newPort);
 
@@ -157,14 +158,15 @@ BOOL CheckRequiredFiles(void)
     PathRemoveFileSpecW(exeDir);
 
     // 필수 파일 목록
-    const wchar_t *requiredFiles[] = {
+    const wchar_t* requiredFiles[] = {
         L"graph.html",
         L"css\\variables.css",
         L"css\\base.css",
         L"css\\components.css",
         L"css\\dashboard.css",
         L"css\\notifications.css",
-        L"css\\responsive.css"};
+        L"css\\responsive.css"
+    };
 
     wchar_t missingFiles[2048] = L"다음 필수 파일이 없습니다:\n\n";
     BOOL allFilesExist = TRUE;
@@ -186,7 +188,7 @@ BOOL CheckRequiredFiles(void)
     if (!allFilesExist)
     {
         wcscat(missingFiles, L"\n\n프로그램 폴더 구조:\n");
-        wcscat(missingFiles, L"  ping_monitor.exe\n");
+        wcscat(missingFiles, L"  ping_monitor_webview.exe\n");
         wcscat(missingFiles, L"  graph.html\n");
         wcscat(missingFiles, L"  ping_config.ini\n");
         wcscat(missingFiles, L"  css\\\n");
@@ -219,7 +221,7 @@ BOOL IsPortAvailable(int port)
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(port);
 
-    int result = bind(sock, (struct sockaddr *)&addr, sizeof(addr));
+    int result = bind(sock, (struct sockaddr*)&addr, sizeof(addr));
     closesocket(sock);
 
     return (result == 0);
@@ -260,272 +262,236 @@ BOOL RestartServer(int newPort)
     return FALSE;
 }
 
-// 포트 입력 다이얼로그 프로시저
-INT_PTR CALLBACK PortDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+// 포트 변경 다이얼로그
+// 포트 변경 다이얼로그용 윈도우 프로시저
+LRESULT CALLBACK PortDialogProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    static int *pNewPort = NULL;
+    static int* pNewPort = NULL;
+    static HWND hEdit = NULL;
+    static BOOL* pResult = NULL;
 
     switch (message)
     {
-    case WM_INITDIALOG:
+    case WM_CREATE:
     {
-        pNewPort = (int *)lParam;
+        CREATESTRUCT* pCreate = (CREATESTRUCT*)lParam;
+
+        // lpCreateParams는 구조체 포인터
+        void** params = (void**)pCreate->lpCreateParams;
+        pNewPort = (int*)params[0];
+        pResult = (BOOL*)params[1];
 
         // 사용 가능한 포트 찾기
         int availablePort = FindAvailablePort(HTTP_PORT_MIN, HTTP_PORT_MAX);
 
-        // 현재 포트 정보 표시
+        // Static 텍스트 (안내문)
         wchar_t infoText[512];
         if (availablePort != -1)
         {
             swprintf(infoText, 512,
-                     L"현재 포트: %d\n\n권장 포트: %d (사용 가능)\n\n새 포트 번호를 입력하세요 (%d-%d):",
-                     g_currentPort, availablePort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+                L"현재 포트: %d\n\n"
+                L"권장 포트: %d (사용 가능)\n\n"
+                L"새 포트 번호를 입력하세요\n"
+                L"(범위: %d-%d)",
+                g_currentPort, availablePort, HTTP_PORT_MIN, HTTP_PORT_MAX);
         }
         else
         {
             swprintf(infoText, 512,
-                     L"현재 포트: %d\n\n경고: 사용 가능한 포트를 찾을 수 없습니다.\n\n새 포트 번호를 입력하세요 (%d-%d):",
-                     g_currentPort, HTTP_PORT_MIN, HTTP_PORT_MAX);
+                L"현재 포트: %d\n\n"
+                L"경고: 사용 가능한 포트를 찾을 수 없습니다\n\n"
+                L"새 포트 번호를 입력하세요\n"
+                L"(범위: %d-%d)",
+                g_currentPort, HTTP_PORT_MIN, HTTP_PORT_MAX);
         }
-        SetDlgItemTextW(hDlg, 1001, infoText);
 
-        // 권장 포트 또는 현재 포트를 입력 필드에 설정
+        HWND hStatic = CreateWindowW(
+            L"STATIC", infoText,
+            WS_VISIBLE | WS_CHILD | SS_LEFT,
+            20, 20, 340, 100,
+            hWnd, NULL, GetModuleHandle(NULL), NULL
+        );
+
+        // Edit 컨트롤 (포트 입력)
         wchar_t portText[16];
         swprintf(portText, 16, L"%d", availablePort != -1 ? availablePort : g_currentPort);
-        SetDlgItemTextW(hDlg, 1002, portText);
+
+        hEdit = CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            L"EDIT", portText,
+            WS_VISIBLE | WS_CHILD | ES_NUMBER | ES_CENTER | WS_TABSTOP,
+            20, 130, 120, 30,
+            hWnd, (HMENU)1002, GetModuleHandle(NULL), NULL
+        );
+
+        // 확인 버튼
+        CreateWindowW(
+            L"BUTTON", L"확인",
+            WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON | WS_TABSTOP,
+            160, 130, 100, 30,
+            hWnd, (HMENU)IDOK, GetModuleHandle(NULL), NULL
+        );
+
+        // 취소 버튼
+        CreateWindowW(
+            L"BUTTON", L"취소",
+            WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | WS_TABSTOP,
+            270, 130, 90, 30,
+            hWnd, (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL
+        );
+
+        // 폰트 설정
+        HFONT hFont = CreateFontW(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Malgun Gothic");
+        SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(hEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(GetDlgItem(hWnd, IDOK), WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(GetDlgItem(hWnd, IDCANCEL), WM_SETFONT, (WPARAM)hFont, TRUE);
 
         // 입력 필드에 포커스
-        SetFocus(GetDlgItem(hDlg, 1002));
-        SendDlgItemMessageW(hDlg, 1002, EM_SETSEL, 0, -1);
+        SetFocus(hEdit);
+        SendMessage(hEdit, EM_SETSEL, 0, -1);
 
-        return FALSE;
+        return 0;
     }
 
     case WM_COMMAND:
         if (LOWORD(wParam) == IDOK)
         {
             wchar_t buffer[16];
-            GetDlgItemTextW(hDlg, 1002, buffer, 16);
+            GetWindowTextW(hEdit, buffer, 16);
             int newPort = _wtoi(buffer);
 
             if (newPort >= HTTP_PORT_MIN && newPort <= HTTP_PORT_MAX)
             {
-                *pNewPort = newPort;
-                EndDialog(hDlg, IDOK);
+                if (IsPortAvailable(newPort) || newPort == g_currentPort)
+                {
+                    *pNewPort = newPort;
+                    *pResult = TRUE;
+                    DestroyWindow(hWnd);
+                }
+                else
+                {
+                    wchar_t errorMsg[256];
+                    swprintf(errorMsg, 256,
+                        L"포트 %d는 이미 사용 중입니다.\n\n다른 포트를 입력하세요.",
+                        newPort);
+                    MessageBoxW(hWnd, errorMsg, L"포트 사용 중", MB_OK | MB_ICONWARNING);
+                }
             }
             else
             {
                 wchar_t errorMsg[256];
-                swprintf(errorMsg, 256, L"포트는 %d부터 %d 사이여야 합니다.", HTTP_PORT_MIN, HTTP_PORT_MAX);
-                MessageBoxW(hDlg, errorMsg, L"입력 오류", MB_OK | MB_ICONWARNING);
+                swprintf(errorMsg, 256,
+                    L"포트는 %d부터 %d 사이여야 합니다.",
+                    HTTP_PORT_MIN, HTTP_PORT_MAX);
+                MessageBoxW(hWnd, errorMsg, L"입력 오류", MB_OK | MB_ICONWARNING);
             }
-            return TRUE;
+            return 0;
         }
         else if (LOWORD(wParam) == IDCANCEL)
         {
-            EndDialog(hDlg, IDCANCEL);
-            return TRUE;
+            *pResult = FALSE;
+            DestroyWindow(hWnd);
+            return 0;
         }
         break;
+
+    case WM_CLOSE:
+        *pResult = FALSE;
+        DestroyWindow(hWnd);
+        return 0;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
     }
-    return FALSE;
+
+    return DefWindowProcW(hWnd, message, wParam, lParam);
 }
 
-// 포트 입력 다이얼로그 생성
-HWND CreatePortDialog(HWND hwndParent, int *pNewPort)
-{
-// 다이얼로그 템플릿을 메모리에 생성
-#pragma pack(push, 1)
-    struct
-    {
-        DLGTEMPLATE dlg;
-        WORD menu;
-        WORD windowClass;
-        WCHAR title[32];
-        WORD pointSize;
-        WCHAR font[32];
-    } dlgTemplate;
-#pragma pack(pop)
-
-    memset(&dlgTemplate, 0, sizeof(dlgTemplate));
-
-    dlgTemplate.dlg.style = DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU;
-    dlgTemplate.dlg.dwExtendedStyle = 0;
-    dlgTemplate.dlg.cdit = 3;
-    dlgTemplate.dlg.x = 0;
-    dlgTemplate.dlg.y = 0;
-    dlgTemplate.dlg.cx = 280;
-    dlgTemplate.dlg.cy = 140;
-    dlgTemplate.menu = 0;
-    dlgTemplate.windowClass = 0;
-    wcscpy(dlgTemplate.title, L"포트 변경");
-    dlgTemplate.pointSize = 9;
-    wcscpy(dlgTemplate.font, L"Malgun Gothic");
-
-    // 다이얼로그 표시
-    return (HWND)DialogBoxIndirectParamW(GetModuleHandle(NULL), &dlgTemplate.dlg, hwndParent, PortDialogProc, (LPARAM)pNewPort);
-}
-
-// 포트 변경 다이얼로그
 void ChangeServerPort(HWND hwnd)
 {
-    // 간단한 입력 창 생성
+    // 다이얼로그 윈도우 클래스 등록
+    static BOOL classRegistered = FALSE;
+    if (!classRegistered)
+    {
+        WNDCLASSW wc = { 0 };
+        wc.lpfnWndProc = PortDialogProc;
+        wc.hInstance = GetModuleHandle(NULL);
+        wc.lpszClassName = L"PortChangeDialog";
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+        if (RegisterClassW(&wc))
+        {
+            classRegistered = TRUE;
+        }
+    }
+
+    int newPort = 0;
+    BOOL dialogResult = FALSE;
+    void* params[2] = { &newPort, &dialogResult };
+
+    // 다이얼로그 윈도우 생성
     HWND hDlg = CreateWindowExW(
         WS_EX_DLGMODALFRAME | WS_EX_TOPMOST,
-        L"#32770", // 다이얼로그 클래스
+        L"PortChangeDialog",
         L"포트 변경",
-        WS_VISIBLE | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_CENTER,
-        0, 0, 350, 230,
+        WS_VISIBLE | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME,
+        CW_USEDEFAULT, CW_USEDEFAULT, 380, 230,
         hwnd,
         NULL,
         GetModuleHandle(NULL),
-        NULL);
+        params
+    );
 
     if (!hDlg)
+    {
+        MessageBoxW(hwnd, L"다이얼로그 생성 실패", L"오류", MB_OK | MB_ICONERROR);
         return;
+    }
 
     // 화면 중앙 배치
     RECT rcDlg, rcOwner;
     GetWindowRect(hDlg, &rcDlg);
     GetWindowRect(GetDesktopWindow(), &rcOwner);
-    SetWindowPos(hDlg, HWND_TOP,
-                 (rcOwner.right - rcDlg.right + rcDlg.left) / 2,
-                 (rcOwner.bottom - rcDlg.bottom + rcDlg.top) / 2,
-                 0, 0, SWP_NOSIZE);
+    int x = (rcOwner.right - (rcDlg.right - rcDlg.left)) / 2;
+    int y = (rcOwner.bottom - (rcDlg.bottom - rcDlg.top)) / 2;
+    SetWindowPos(hDlg, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
 
-    // Static 텍스트 (안내문)
-    int availablePort = FindAvailablePort(HTTP_PORT_MIN, HTTP_PORT_MAX);
-    wchar_t infoText[512];
-    if (availablePort != -1)
-    {
-        swprintf(infoText, 512,
-                 L"현재 포트: %d\n\n"
-                 L"권장 포트: %d (사용 가능)\n\n"
-                 L"새 포트 번호를 입력하세요 (%d-%d):",
-                 g_currentPort, availablePort, HTTP_PORT_MIN, HTTP_PORT_MAX);
-    }
-    else
-    {
-        swprintf(infoText, 512,
-                 L"현재 포트: %d\n\n"
-                 L"경고: 사용 가능한 포트를 찾을 수 없습니다.\n\n"
-                 L"새 포트 번호를 입력하세요 (%d-%d):",
-                 g_currentPort, HTTP_PORT_MIN, HTTP_PORT_MAX);
-    }
+    // 모달 루프
+    EnableWindow(hwnd, FALSE);
 
-    HWND hStatic = CreateWindowW(
-        L"STATIC", infoText,
-        WS_VISIBLE | WS_CHILD | SS_LEFT,
-        20, 20, 300, 80,
-        hDlg, (HMENU)1001, GetModuleHandle(NULL), NULL);
-
-    // Edit 컨트롤 (포트 입력)
-    wchar_t portText[16];
-    swprintf(portText, 16, L"%d", availablePort != -1 ? availablePort : g_currentPort);
-
-    HWND hEdit = CreateWindowW(
-        L"EDIT", portText,
-        WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER | ES_CENTER,
-        20, 110, 100, 25,
-        hDlg, (HMENU)1002, GetModuleHandle(NULL), NULL);
-
-    // 확인 버튼
-    HWND hOK = CreateWindowW(
-        L"BUTTON", L"확인",
-        WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-        140, 110, 80, 25,
-        hDlg, (HMENU)IDOK, GetModuleHandle(NULL), NULL);
-
-    // 취소 버튼
-    HWND hCancel = CreateWindowW(
-        L"BUTTON", L"취소",
-        WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-        230, 110, 80, 25,
-        hDlg, (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL);
-
-    // 폰트 설정
-    HFONT hFont = CreateFontW(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                              DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Malgun Gothic");
-    SendMessage(hStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(hEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(hOK, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(hCancel, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    // 포커스 설정
-    SetFocus(hEdit);
-    SendMessage(hEdit, EM_SETSEL, 0, -1);
-
-    // 메시지 루프
     MSG msg;
-    BOOL result = FALSE;
-    int newPort = 0;
 
     while (GetMessage(&msg, NULL, 0, 0))
     {
-        if (msg.hwnd == hDlg || IsChild(hDlg, msg.hwnd))
+        if (msg.message == WM_QUIT)
         {
-            if (msg.message == WM_COMMAND)
-            {
-                if (LOWORD(msg.wParam) == IDOK)
-                {
-                    wchar_t buffer[16];
-                    GetWindowTextW(hEdit, buffer, 16);
-                    newPort = _wtoi(buffer);
-
-                    if (newPort >= HTTP_PORT_MIN && newPort <= HTTP_PORT_MAX)
-                    {
-                        if (IsPortAvailable(newPort) || newPort == g_currentPort)
-                        {
-                            result = TRUE;
-                            DestroyWindow(hDlg);
-                            break;
-                        }
-                        else
-                        {
-                            wchar_t errorMsg[256];
-                            swprintf(errorMsg, 256, L"포트 %d는 이미 사용 중입니다.\n\n다른 포트를 입력하세요.", newPort);
-                            MessageBoxW(hDlg, errorMsg, L"포트 사용 중", MB_OK | MB_ICONWARNING);
-                        }
-                    }
-                    else
-                    {
-                        wchar_t errorMsg[256];
-                        swprintf(errorMsg, 256, L"포트는 %d부터 %d 사이여야 합니다.", HTTP_PORT_MIN, HTTP_PORT_MAX);
-                        MessageBoxW(hDlg, errorMsg, L"입력 오류", MB_OK | MB_ICONWARNING);
-                    }
-                }
-                else if (LOWORD(msg.wParam) == IDCANCEL)
-                {
-                    DestroyWindow(hDlg);
-                    break;
-                }
-            }
-            else if (msg.message == WM_CLOSE)
-            {
-                DestroyWindow(hDlg);
-                break;
-            }
-
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            // WM_DESTROY에서 PostQuitMessage를 받으면 종료
+            break;
         }
+
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
     }
 
-    DeleteObject(hFont);
+    EnableWindow(hwnd, TRUE);
+    SetForegroundWindow(hwnd);
 
     // 결과 처리
-    if (result && newPort > 0)
+    if (dialogResult && newPort > 0 && newPort != g_currentPort)
     {
         if (RestartServer(newPort))
         {
             wchar_t successMsg[256];
             swprintf(successMsg, 256,
-                     L"포트가 %d로 변경되었습니다.\n\n"
-                     L"새 주소: http://localhost:%d",
-                     newPort, newPort);
-            MessageBoxW(hwnd, successMsg, L"성공", MB_OK | MB_ICONINFORMATION);
+                L"포트가 %d로 변경되었습니다.\n\n"
+                L"새 주소: http://localhost:%d",
+                newPort, newPort);
+            MessageBoxW(hwnd, successMsg, L"포트 변경 완료", MB_OK | MB_ICONINFORMATION);
 
             // 브라우저 열기
             wchar_t url[256];
@@ -534,13 +500,13 @@ void ChangeServerPort(HWND hwnd)
         }
         else
         {
-            MessageBoxW(hwnd, L"포트 변경 실패. 다른 포트를 시도해주세요.", L"오류", MB_OK | MB_ICONERROR);
+            MessageBoxW(hwnd, L"포트 변경에 실패했습니다.", L"오류", MB_OK | MB_ICONERROR);
         }
     }
 }
 
 // 설정 파일 로드
-void LoadConfigFromFile(const wchar_t *configFile)
+void LoadConfigFromFile(const wchar_t* configFile)
 {
     wchar_t configPath[MAX_PATH];
     wchar_t exeDir[MAX_PATH];
@@ -550,7 +516,7 @@ void LoadConfigFromFile(const wchar_t *configFile)
 
     swprintf(configPath, MAX_PATH, L"%s\\%s", exeDir, configFile);
 
-    FILE *file = _wfopen(configPath, L"r, ccs=UTF-8");
+    FILE* file = _wfopen(configPath, L"r, ccs=UTF-8");
     if (!file)
     {
         file = _wfopen(configPath, L"r");
@@ -593,10 +559,10 @@ void LoadConfigFromFile(const wchar_t *configFile)
             wchar_t key[128], value[128];
             if (swscanf(line, L"%127[^=]=%127s", key, value) == 2)
             {
-                wchar_t *k = key;
+                wchar_t* k = key;
                 while (*k == L' ' || *k == L'\t')
                     k++;
-                wchar_t *kend = k + wcslen(k) - 1;
+                wchar_t* kend = k + wcslen(k) - 1;
                 while (kend > k && (*kend == L' ' || *kend == L'\t'))
                     *kend-- = 0;
 
@@ -641,12 +607,12 @@ void LoadConfigFromFile(const wchar_t *configFile)
             }
         }
 
-        wchar_t *comma = wcschr(line, L',');
+        wchar_t* comma = wcschr(line, L',');
         if (comma)
         {
             *comma = 0;
-            wchar_t *ip = line;
-            wchar_t *name = comma + 1;
+            wchar_t* ip = line;
+            wchar_t* name = comma + 1;
 
             while (*ip == L' ' || *ip == L'\t')
                 ip++;
@@ -695,19 +661,19 @@ void LoadConfig(void)
     wprintf(L"==========================================\n");
     wprintf(L"설정 로드 완료: 총 %d개 타겟\n", g_targetCount);
     wprintf(L"알림 설정: %s (쿨다운: %d초, 연속실패: %d회)\n",
-            g_notifSettings.enabled ? L"활성화" : L"비활성화",
-            g_notifSettings.cooldown,
-            g_notifSettings.consecutiveFailuresThreshold);
+        g_notifSettings.enabled ? L"활성화" : L"비활성화",
+        g_notifSettings.cooldown,
+        g_notifSettings.consecutiveFailuresThreshold);
     wprintf(L"==========================================\n");
 }
 
 // 트레이 아이콘 풍선 알림 표시
-void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags)
+void ShowBalloonNotification(const wchar_t* title, const wchar_t* message, DWORD infoFlags)
 {
     if (!g_notifSettings.enabled)
         return;
 
-    NOTIFYICONDATAW nid = {0};
+    NOTIFYICONDATAW nid = { 0 };
     nid.cbSize = sizeof(NOTIFYICONDATAW);
     nid.hWnd = g_hwnd;
     nid.uID = ID_TRAY_ICON;
@@ -725,7 +691,7 @@ void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD
 }
 
 // 타임아웃 및 복구 감지 후 알림
-void CheckAndNotify(IPTarget *target)
+void CheckAndNotify(IPTarget* target)
 {
     if (!g_notifSettings.enabled)
         return;
@@ -733,7 +699,7 @@ void CheckAndNotify(IPTarget *target)
     time_t currentTime = time(NULL);
     time_t timeSinceLastNotification = currentTime - target->lastNotificationTime;
 
-    struct tm *timeInfo = localtime(&currentTime);
+    struct tm* timeInfo = localtime(&currentTime);
     wchar_t timeStr[32];
     wcsftime(timeStr, 32, L"%H:%M:%S", timeInfo);
 
@@ -749,8 +715,8 @@ void CheckAndNotify(IPTarget *target)
         }
 
         swprintf(message, ARRAYSIZE(message),
-                 L"[%s]\n%s (%s)\n%d회 연속 응답 없음",
-                 timeStr, target->name, target->ip, target->consecutiveFailures);
+            L"[%s]\n%s (%s)\n%d회 연속 응답 없음",
+            timeStr, target->name, target->ip, target->consecutiveFailures);
 
         ShowBalloonNotification(L"⚠️ 네트워크 타임아웃", message, NIIF_WARNING);
         target->lastNotificationTime = currentTime;
@@ -761,13 +727,13 @@ void CheckAndNotify(IPTarget *target)
     }
 
     else if (g_notifSettings.notifyOnRecovery &&
-             target->previousOnline == 0 && target->online == 1 &&
-             target->total > g_notifSettings.consecutiveFailuresThreshold)
+        target->previousOnline == 0 && target->online == 1 &&
+        target->total > g_notifSettings.consecutiveFailuresThreshold)
     {
 
         swprintf(message, ARRAYSIZE(message),
-                 L"[%s]\n%s (%s)\n연결 복구됨 (지연: %lu ms)",
-                 timeStr, target->name, target->ip, target->latency);
+            L"[%s]\n%s (%s)\n연결 복구됨 (지연: %lu ms)",
+            timeStr, target->name, target->ip, target->latency);
 
         ShowBalloonNotification(L"✅ 네트워크 복구", message, NIIF_INFO);
         target->lastNotificationTime = currentTime;
@@ -781,7 +747,7 @@ void CheckAndNotify(IPTarget *target)
 }
 
 // 알림 로그 JSON 파일에 저장
-void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr)
+void SaveNotificationLog(const wchar_t* type, const wchar_t* name, const wchar_t* ip, const wchar_t* timeStr)
 {
     EnterCriticalSection(&g_logLock);
 
@@ -793,10 +759,10 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
     swprintf(logPath, MAX_PATH, L"%s\\notification_log.json", exeDir);
 
     wchar_t logData[50000] = L"[]";
-    FILE *readFile = _wfopen(logPath, L"r, ccs=UTF-8");
+    FILE* readFile = _wfopen(logPath, L"r, ccs=UTF-8");
     if (readFile)
     {
-        wchar_t *ptr = logData;
+        wchar_t* ptr = logData;
         size_t remaining = 49999;
         while (remaining > 0 && fgetws(ptr, remaining, readFile))
         {
@@ -809,26 +775,26 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
     }
 
     time_t now = time(NULL);
-    struct tm *timeInfo = localtime(&now);
+    struct tm* timeInfo = localtime(&now);
     wchar_t dateStr[32];
     wcsftime(dateStr, 32, L"%Y-%m-%d", timeInfo);
 
-    wchar_t *insertPos = wcsstr(logData, L"]");
+    wchar_t* insertPos = wcsstr(logData, L"]");
     if (insertPos)
     {
         BOOL isEmpty = (wcsstr(logData, L"[]") != NULL);
 
         wchar_t newEntry[512];
         swprintf(newEntry, 512,
-                 L"%s\n  {\n"
-                 L"    \"type\": \"%s\",\n"
-                 L"    \"name\": \"%s\",\n"
-                 L"    \"ip\": \"%s\",\n"
-                 L"    \"time\": \"%s\",\n"
-                 L"    \"date\": \"%s\"\n"
-                 L"  }\n]",
-                 isEmpty ? L"" : L",",
-                 type, name, ip, timeStr, dateStr);
+            L"%s\n  {\n"
+            L"    \"type\": \"%s\",\n"
+            L"    \"name\": \"%s\",\n"
+            L"    \"ip\": \"%s\",\n"
+            L"    \"time\": \"%s\",\n"
+            L"    \"date\": \"%s\"\n"
+            L"  }\n]",
+            isEmpty ? L"" : L",",
+            type, name, ip, timeStr, dateStr);
 
         size_t beforeLen = insertPos - logData;
         wchar_t result[51000];
@@ -839,7 +805,7 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
         wchar_t tmpPath[MAX_PATH];
         swprintf(tmpPath, MAX_PATH, L"%s\\notification_log.json.tmp", exeDir);
 
-        FILE *writeFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
+        FILE* writeFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
         if (writeFile)
         {
             fwprintf(writeFile, L"%s", result);
@@ -854,7 +820,7 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
 }
 
 // ICMP 핑 실행
-BOOL DoPing(const wchar_t *ip, DWORD *latency)
+BOOL DoPing(const wchar_t* ip, DWORD* latency)
 {
     HANDLE hIcmpFile = IcmpCreateFile();
     if (hIcmpFile == INVALID_HANDLE_VALUE)
@@ -910,7 +876,7 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
 }
 
 // 타겟 통계 업데이트
-void UpdateTarget(IPTarget *target, BOOL success, DWORD latency)
+void UpdateTarget(IPTarget* target, BOOL success, DWORD latency)
 {
     target->total++;
 
@@ -947,36 +913,36 @@ void UpdateTarget(IPTarget *target, BOOL success, DWORD latency)
 }
 
 // JSON 데이터 생성
-void BuildJsonData(wchar_t *buffer, size_t bufferSize)
+void BuildJsonData(wchar_t* buffer, size_t bufferSize)
 {
     int offset = 0;
 
     offset += swprintf(buffer + offset, bufferSize - offset,
-                       L"{\n  \"running\": %s,\n  \"elapsed\": %d,\n  \"total\": %d,\n  \"loop\": %s,\n",
-                       g_isRunning ? L"true" : L"false",
-                       g_targetCount > 0 ? g_targets[0].total : 0,
-                       g_targetCount > 0 ? g_targets[0].total : 0,
-                       g_timeSettings.loop ? L"true" : L"false");
+        L"{\n  \"running\": %s,\n  \"elapsed\": %d,\n  \"total\": %d,\n  \"loop\": %s,\n",
+        g_isRunning ? L"true" : L"false",
+        g_targetCount > 0 ? g_targets[0].total : 0,
+        g_targetCount > 0 ? g_targets[0].total : 0,
+        g_timeSettings.loop ? L"true" : L"false");
 
     offset += swprintf(buffer + offset, bufferSize - offset, L"  \"targets\": [\n");
 
     for (int i = 0; i < g_targetCount; i++)
     {
-        IPTarget *t = &g_targets[i];
+        IPTarget* t = &g_targets[i];
 
         offset += swprintf(buffer + offset, bufferSize - offset,
-                           L"    {\n"
-                           L"      \"ip\": \"%s\",\n"
-                           L"      \"name\": \"%s\",\n"
-                           L"      \"latency\": %lu,\n"
-                           L"      \"online\": %d,\n"
-                           L"      \"total\": %d,\n"
-                           L"      \"success\": %d,\n"
-                           L"      \"min\": %lu,\n"
-                           L"      \"max\": %lu,\n"
-                           L"      \"avg\": %.2f,\n",
-                           t->ip, t->name, t->latency, t->online,
-                           t->total, t->success, t->min, t->max, t->avg);
+            L"    {\n"
+            L"      \"ip\": \"%s\",\n"
+            L"      \"name\": \"%s\",\n"
+            L"      \"latency\": %lu,\n"
+            L"      \"online\": %d,\n"
+            L"      \"total\": %d,\n"
+            L"      \"success\": %d,\n"
+            L"      \"min\": %lu,\n"
+            L"      \"max\": %lu,\n"
+            L"      \"avg\": %.2f,\n",
+            t->ip, t->name, t->latency, t->online,
+            t->total, t->success, t->min, t->max, t->avg);
 
         offset += swprintf(buffer + offset, bufferSize - offset, L"      \"history\": [");
 
@@ -1018,13 +984,13 @@ void SendDataToWebView(void)
     swprintf(tmpPath, MAX_PATH, L"%s\\%s.tmp", exeDir, JSON_FILE);
 
     size_t bufferSize = 10 * 1024 * 1024;
-    wchar_t *jsonData = (wchar_t *)malloc(bufferSize);
+    wchar_t* jsonData = (wchar_t*)malloc(bufferSize);
     if (!jsonData)
         return;
 
     BuildJsonData(jsonData, bufferSize / sizeof(wchar_t));
 
-    FILE *tmpFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
+    FILE* tmpFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
     if (tmpFile)
     {
         fwprintf(tmpFile, L"%s", jsonData);
@@ -1131,7 +1097,7 @@ void ShowTrayMenu(HWND hwnd)
 }
 
 // 브라우저 열기
-void OpenBrowser(const wchar_t *url)
+void OpenBrowser(const wchar_t* url)
 {
     ShellExecuteW(NULL, L"open", url, NULL, NULL, SW_SHOWNORMAL);
 }
@@ -1199,8 +1165,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             if (g_notifSettings.enabled)
             {
                 ShowBalloonNotification(L"알림 활성화",
-                                        L"네트워크 타임아웃 및 복구 알림이 활성화되었습니다.",
-                                        NIIF_INFO);
+                    L"네트워크 타임아웃 및 복구 알림이 활성화되었습니다.",
+                    NIIF_INFO);
             }
             break;
 
@@ -1289,10 +1255,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         {
             wchar_t errorMsg[512];
             swprintf(errorMsg, 512,
-                     L"HTTP 서버 시작 실패\n\n"
-                     L"포트 %d-%d 범위에서 사용 가능한 포트를 찾을 수 없습니다.\n\n"
-                     L"다른 프로그램이 해당 포트를 사용 중일 수 있습니다.",
-                     HTTP_PORT_MIN, HTTP_PORT_MAX);
+                L"HTTP 서버 시작 실패\n\n"
+                L"포트 %d-%d 범위에서 사용 가능한 포트를 찾을 수 없습니다.\n\n"
+                L"다른 프로그램이 해당 포트를 사용 중일 수 있습니다.",
+                HTTP_PORT_MIN, HTTP_PORT_MAX);
             MessageBoxW(NULL, errorMsg, L"오류", MB_OK | MB_ICONERROR);
             DeleteCriticalSection(&g_logLock);
             WSACleanup();
@@ -1305,7 +1271,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         wprintf(L"HTTP 서버 시작 성공: http://localhost:%d\n", HTTP_PORT);
     }
 
-    WNDCLASSW wc = {0};
+    WNDCLASSW wc = { 0 };
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"PingMonitorClass";
