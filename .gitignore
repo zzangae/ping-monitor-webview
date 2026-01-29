@@ -1,11 +1,10 @@
-# Internal configuration file (contains private IP addresses)
-int_config.ini
-
-# Build artifacts
 *.exe
-*.obj
 *.o
-
-# Data files
+*.obj
+int_config.ini
 ping_data.json
+outage_log.json
 notification_log.json
+*.tmp
+*.bak
+PingMonitor/

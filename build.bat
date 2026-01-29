@@ -1,11 +1,12 @@
 @echo off
+chcp 65001 > nul
 echo ========================================
-echo Ping Monitor v2.5 - Build
+echo Ping Monitor v2.6 - Build
 echo ========================================
 echo.
 
 echo [1/4] Compiling...
-gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -lshell32 -mwindows -municode -O2
+gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c outage.c -lws2_32 -liphlpapi -lshlwapi -lole32 -loleaut32 -lshell32 -mwindows -municode -O2
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
@@ -23,10 +24,6 @@ if not exist ping_config.ini (
 )
 if not exist graph.html (
     echo WARNING: graph.html not found
-    set MISSING_FILES=1
-)
-if not exist chart.umd.min.js (
-    echo WARNING: chart.umd.min.js not found
     set MISSING_FILES=1
 )
 if not exist css\variables.css (
@@ -49,6 +46,10 @@ if not exist css\notifications.css (
     echo WARNING: css\notifications.css not found
     set MISSING_FILES=1
 )
+if not exist css\outages.css (
+    echo WARNING: css\outages.css not found
+    set MISSING_FILES=1
+)
 if not exist css\responsive.css (
     echo WARNING: css\responsive.css not found
     set MISSING_FILES=1
@@ -63,11 +64,11 @@ echo.
 echo Executable: ping_monitor.exe
 echo Dashboard: http://localhost:8080/graph.html
 echo.
-echo New in v2.5:
-echo   - Dual config files (ping_config.ini + int_config.ini)
-echo   - Internal IPs protected (Git ignored)
-echo   - Port change via tray icon
-echo   - Browser close = program exit
+echo New in v2.6:
+echo   - Outage Management System (5min threshold)
+echo   - Group and Priority support
+echo   - Outage Timeline Tab
+echo   - outage_log.json recording
 echo.
 
 if %MISSING_FILES% EQU 1 (
@@ -115,19 +116,18 @@ echo Copying files...
 copy ping_monitor.exe %DEPLOY_DIR%\ >nul
 copy graph.html %DEPLOY_DIR%\ >nul
 
-if exist chart.umd.min.js (
-    copy chart.umd.min.js %DEPLOY_DIR%\ >nul
-    echo   - chart.umd.min.js copied
-) else (
-    echo WARNING: chart.umd.min.js not found!
-    echo   Download from: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js
-)
-
 if exist ping_config.ini (
     copy ping_config.ini %DEPLOY_DIR%\ >nul
 ) else (
     echo Creating sample ping_config.ini...
     (
+        echo [OutageDetection]
+        echo OutageThreshold=300
+        echo.
+        echo [IPGroups]
+        echo 8.8.8.8=Network,1
+        echo 1.1.1.1=Network,1
+        echo.
         echo [Settings]
         echo NotificationsEnabled=1
         echo NotificationCooldown=60
@@ -149,7 +149,7 @@ copy css\*.css %DEPLOY_DIR%\css\ >nul
 echo Creating README...
 (
     echo ====================================================
-    echo Ping Monitor WebView2 v2.5
+    echo Ping Monitor WebView2 v2.6
     echo ====================================================
     echo.
     echo HOW TO RUN:
@@ -159,24 +159,19 @@ echo Creating README...
     echo   http://localhost:8080
     echo.
     echo CONFIG FILES:
-    echo   ping_config.ini - Public IPs
+    echo   ping_config.ini - Public IPs + Outage Settings
     echo   int_config.ini  - Internal IPs (optional^)
     echo.
-    echo TROUBLESHOOTING:
-    echo   404 Error: Check all files are in correct location
-    echo   Port Error: Right-click tray icon ^> Change Port
-    echo   Chart Error: Make sure chart.umd.min.js exists
-    echo.
-    echo REQUIRED FILES:
-    echo   ping_monitor.exe
-    echo   graph.html
-    echo   chart.umd.min.js
-    echo   ping_config.ini
-    echo   css\ folder (6 CSS files^)
+    echo NEW IN v2.6:
+    echo   - Outage Management System (5min threshold^)
+    echo   - Group classification
+    echo   - Priority levels (P1-P5^)
+    echo   - Outage Timeline Tab
+    echo   - outage_log.json logging
     echo.
     echo FEATURES:
     echo   - Real-time ICMP ping monitoring
-    echo   - Interactive web dashboard with Chart.js
+    echo   - Interactive web dashboard
     echo   - Network timeout/recovery notifications
     echo   - IP card drag and drop
     echo   - Minimize/restore IP cards

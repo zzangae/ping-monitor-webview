@@ -1,6 +1,6 @@
 /**
  * HTTP Server for Ping Monitor
- * 간단한 내장 HTTP 서버 구현 - 디버그 버전
+ * Simple embedded HTTP server implementation
  */
 
 #include "http_server.h"
@@ -8,146 +8,81 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #pragma comment(lib, "ws2_32.lib")
 
- // 외부 변수 선언 (메인 윈도우 핸들)
-extern HWND g_mainHwnd;
-
 // ============================================================================
-// 전역 변수
+// Global Variables
 // ============================================================================
 static SOCKET g_serverSocket = INVALID_SOCKET;
 static HANDLE g_serverThread = NULL;
 static BOOL g_serverRunning = FALSE;
 static int g_serverPort = HTTP_PORT_DEFAULT;
-static WCHAR g_rootPath[HTTP_MAX_PATH] = { 0 };
-static FILE* g_debugLog = NULL;
+static WCHAR g_rootPath[HTTP_MAX_PATH] = {0};
 
 // ============================================================================
-// 디버그 로그 함수
-// ============================================================================
-static void WriteDebugLog(const char* message)
-{
-    if (!g_debugLog)
-    {
-        g_debugLog = fopen("server_debug.txt", "a");
-    }
-
-    if (g_debugLog)
-    {
-        time_t now = time(NULL);
-        struct tm* t = localtime(&now);
-        fprintf(g_debugLog, "[%02d:%02d:%02d] %s\n",
-            t->tm_hour, t->tm_min, t->tm_sec, message);
-        fflush(g_debugLog);
-    }
-}
-
-static void WriteDebugLogW(const WCHAR* message)
-{
-    if (!g_debugLog)
-    {
-        g_debugLog = fopen("server_debug.txt", "a");
-    }
-
-    if (g_debugLog)
-    {
-        time_t now = time(NULL);
-        struct tm* t = localtime(&now);
-        fprintf(g_debugLog, "[%02d:%02d:%02d] %ls\n",
-            t->tm_hour, t->tm_min, t->tm_sec, message);
-        fflush(g_debugLog);
-    }
-}
-
-// ============================================================================
-// 내부 함수 선언
+// Internal Function Declarations
 // ============================================================================
 static DWORD WINAPI HttpServerThread(LPVOID lpParam);
 static void HandleClient(SOCKET clientSocket);
-static const char* GetMimeType(const char* path);
-static void SendResponse(SOCKET client, int statusCode, const char* statusText,
-    const char* contentType, const char* body, int bodyLen);
-static void SendFile(SOCKET client, const char* filePath);
+static const char *GetMimeType(const char *path);
+static void SendResponse(SOCKET client, int statusCode, const char *statusText,
+                         const char *contentType, const char *body, int bodyLen);
+static void SendFile(SOCKET client, const char *filePath);
 static void Send404(SOCKET client);
 static void Send500(SOCKET client);
 
 // ============================================================================
-// HTTP 서버 시작
+// Start HTTP Server
 // ============================================================================
-BOOL StartHttpServer(int port, const WCHAR* rootPath)
+BOOL StartHttpServer(int port, const WCHAR *rootPath)
 {
     if (g_serverRunning)
     {
-        return TRUE; // 이미 실행 중
-    }
-
-    // 디버그 로그 초기화
-    g_debugLog = fopen("server_debug.txt", "w");
-    if (g_debugLog)
-    {
-        fprintf(g_debugLog, "===========================================\n");
-        fprintf(g_debugLog, "HTTP Server Debug Log\n");
-        fprintf(g_debugLog, "===========================================\n");
-        fclose(g_debugLog);
-        g_debugLog = NULL;
+        return TRUE; // Already running
     }
 
     g_serverPort = port;
     wcscpy(g_rootPath, rootPath);
 
-    // 디버그: rootPath 로그
-    WCHAR debugMsg[HTTP_MAX_PATH + 50];
-    swprintf(debugMsg, HTTP_MAX_PATH + 50, L"Server starting on port %d", port);
-    WriteDebugLogW(debugMsg);
-    swprintf(debugMsg, HTTP_MAX_PATH + 50, L"Root path: %s", g_rootPath);
-    WriteDebugLogW(debugMsg);
-
-    // 소켓 생성
+    // Create socket
     g_serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (g_serverSocket == INVALID_SOCKET)
     {
-        WriteDebugLog("ERROR: Socket creation failed");
         return FALSE;
     }
 
-    // SO_REUSEADDR 설정
+    // Set SO_REUSEADDR
     int opt = 1;
-    setsockopt(g_serverSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
+    setsockopt(g_serverSocket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt));
 
-    // 바인드
+    // Bind
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // localhost만
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1"); // localhost only
     addr.sin_port = htons((u_short)port);
 
-    if (bind(g_serverSocket, (struct sockaddr*)&addr, sizeof(addr)) == SOCKET_ERROR)
+    if (bind(g_serverSocket, (struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
     {
-        WriteDebugLog("ERROR: Socket bind failed");
         closesocket(g_serverSocket);
         g_serverSocket = INVALID_SOCKET;
         return FALSE;
     }
 
-    // 리슨
+    // Listen
     if (listen(g_serverSocket, SOMAXCONN) == SOCKET_ERROR)
     {
-        WriteDebugLog("ERROR: Socket listen failed");
         closesocket(g_serverSocket);
         g_serverSocket = INVALID_SOCKET;
         return FALSE;
     }
 
     g_serverRunning = TRUE;
-    WriteDebugLog("Server started successfully");
 
-    // 서버 스레드 시작
+    // Start server thread
     g_serverThread = CreateThread(NULL, 0, HttpServerThread, NULL, 0, NULL);
     if (!g_serverThread)
     {
-        WriteDebugLog("ERROR: Server thread creation failed");
         closesocket(g_serverSocket);
         g_serverSocket = INVALID_SOCKET;
         g_serverRunning = FALSE;
@@ -158,16 +93,15 @@ BOOL StartHttpServer(int port, const WCHAR* rootPath)
 }
 
 // ============================================================================
-// HTTP 서버 중지
+// Stop HTTP Server
 // ============================================================================
 void StopHttpServer(void)
 {
-    WriteDebugLog("Server stopping...");
-
     g_serverRunning = FALSE;
 
     if (g_serverSocket != INVALID_SOCKET)
     {
+        // Close socket (release accept blocking)
         shutdown(g_serverSocket, SD_BOTH);
         closesocket(g_serverSocket);
         g_serverSocket = INVALID_SOCKET;
@@ -175,25 +109,19 @@ void StopHttpServer(void)
 
     if (g_serverThread)
     {
+        // Wait for thread to terminate (max 2 seconds)
         if (WaitForSingleObject(g_serverThread, 2000) == WAIT_TIMEOUT)
         {
+            // Force terminate on timeout
             TerminateThread(g_serverThread, 0);
         }
         CloseHandle(g_serverThread);
         g_serverThread = NULL;
     }
-
-    WriteDebugLog("Server stopped");
-
-    if (g_debugLog)
-    {
-        fclose(g_debugLog);
-        g_debugLog = NULL;
-    }
 }
 
 // ============================================================================
-// 상태 확인
+// Check Status
 // ============================================================================
 BOOL IsHttpServerRunning(void)
 {
@@ -206,7 +134,7 @@ int GetHttpServerPort(void)
 }
 
 // ============================================================================
-// 서버 스레드
+// Server Thread
 // ============================================================================
 static DWORD WINAPI HttpServerThread(LPVOID lpParam)
 {
@@ -214,18 +142,20 @@ static DWORD WINAPI HttpServerThread(LPVOID lpParam)
 
     while (g_serverRunning)
     {
+        // Wait for client connection
         struct sockaddr_in clientAddr;
         int clientAddrLen = sizeof(clientAddr);
 
-        SOCKET clientSocket = accept(g_serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
+        SOCKET clientSocket = accept(g_serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
 
         if (clientSocket == INVALID_SOCKET)
         {
             if (!g_serverRunning)
-                break;
+                break; // Server stopped
             continue;
         }
 
+        // Handle client
         HandleClient(clientSocket);
         closesocket(clientSocket);
     }
@@ -234,7 +164,7 @@ static DWORD WINAPI HttpServerThread(LPVOID lpParam)
 }
 
 // ============================================================================
-// 클라이언트 요청 처리
+// Handle Client Request
 // ============================================================================
 static void HandleClient(SOCKET clientSocket)
 {
@@ -248,25 +178,18 @@ static void HandleClient(SOCKET clientSocket)
 
     buffer[received] = '\0';
 
-    // GET 또는 POST 요청 파싱
-    BOOL isPost = FALSE;
-    if (strncmp(buffer, "POST ", 5) == 0)
+    // Parse GET request
+    if (strncmp(buffer, "GET ", 4) != 0)
     {
-        isPost = TRUE;
-    }
-    else if (strncmp(buffer, "GET ", 4) != 0)
-    {
-        WriteDebugLog("ERROR: Invalid request method");
         Send404(clientSocket);
         return;
     }
 
-    // URL 추출
-    char* urlStart = buffer + (isPost ? 5 : 4);
-    char* urlEnd = strchr(urlStart, ' ');
+    // Extract URL
+    char *urlStart = buffer + 4;
+    char *urlEnd = strchr(urlStart, ' ');
     if (!urlEnd)
     {
-        WriteDebugLog("ERROR: Invalid URL format");
         Send404(clientSocket);
         return;
     }
@@ -276,101 +199,48 @@ static void HandleClient(SOCKET clientSocket)
     strncpy(url, urlStart, HTTP_MAX_PATH - 1);
     url[HTTP_MAX_PATH - 1] = '\0';
 
-    // 디버그: 요청 URL 로그
-    char debugMsg[HTTP_MAX_PATH + 50];
-    snprintf(debugMsg, sizeof(debugMsg), "Request: %s", url);
-    WriteDebugLog(debugMsg);
-
-    // 쿼리 스트링 제거
-    char* query = strchr(url, '?');
+    // Remove query string
+    char *query = strchr(url, '?');
     if (query)
         *query = '\0';
 
-    // /shutdown 엔드포인트 처리
-    if (strcmp(url, "/shutdown") == 0)
-    {
-        WriteDebugLog("Shutdown request received");
-
-        const char* response =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: text/plain\r\n"
-            "Content-Length: 2\r\n"
-            "Connection: close\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
-            "\r\n"
-            "OK";
-
-        send(clientSocket, response, (int)strlen(response), 0);
-
-        if (g_mainHwnd)
-        {
-            PostMessage(g_mainHwnd, WM_CLOSE, 0, 0);
-        }
-
-        return;
-    }
-
-    // 기본 페이지
+    // Default page
     if (strcmp(url, "/") == 0)
     {
         strcpy(url, "/graph.html");
-        WriteDebugLog("Default page redirected to /graph.html");
     }
 
-    // 파일 경로 생성
+    // Build file path
     char filePath[HTTP_MAX_PATH * 2];
     char rootPathAnsi[HTTP_MAX_PATH];
     WideCharToMultiByte(CP_UTF8, 0, g_rootPath, -1, rootPathAnsi, HTTP_MAX_PATH, NULL, NULL);
 
     snprintf(filePath, sizeof(filePath), "%s%s", rootPathAnsi, url);
 
-    // 디버그: rootPath와 최종 경로 로그
-    snprintf(debugMsg, sizeof(debugMsg), "Root path (ANSI): %s", rootPathAnsi);
-    WriteDebugLog(debugMsg);
-    snprintf(debugMsg, sizeof(debugMsg), "Full path (before conversion): %s", filePath);
-    WriteDebugLog(debugMsg);
-
-    // 경로 정규화 (.. 방지)
+    // Normalize path (prevent ..)
     if (strstr(filePath, ".."))
     {
-        WriteDebugLog("ERROR: Path contains '..' - security violation");
         Send404(clientSocket);
         return;
     }
 
-    // 백슬래시로 변환
-    for (char* p = filePath; *p; p++)
+    // Convert to backslash
+    for (char *p = filePath; *p; p++)
     {
         if (*p == '/')
             *p = '\\';
     }
 
-    // 디버그: 변환 후 최종 경로
-    snprintf(debugMsg, sizeof(debugMsg), "Full path (after conversion): %s", filePath);
-    WriteDebugLog(debugMsg);
-
-    // 파일 존재 여부 확인
-    FILE* testFp = fopen(filePath, "rb");
-    if (testFp)
-    {
-        fclose(testFp);
-        WriteDebugLog("File exists - attempting to send");
-    }
-    else
-    {
-        WriteDebugLog("ERROR: File not found");
-    }
-
-    // 파일 전송
+    // Send file
     SendFile(clientSocket, filePath);
 }
 
 // ============================================================================
-// MIME 타입 결정
+// Determine MIME Type
 // ============================================================================
-static const char* GetMimeType(const char* path)
+static const char *GetMimeType(const char *path)
 {
-    const char* ext = strrchr(path, '.');
+    const char *ext = strrchr(path, '.');
     if (!ext)
         return "application/octet-stream";
 
@@ -419,71 +289,57 @@ static const char* GetMimeType(const char* path)
 }
 
 // ============================================================================
-// HTTP 응답 전송
+// Send HTTP Response
 // ============================================================================
-static void SendResponse(SOCKET client, int statusCode, const char* statusText,
-    const char* contentType, const char* body, int bodyLen)
+static void SendResponse(SOCKET client, int statusCode, const char *statusText,
+                         const char *contentType, const char *body, int bodyLen)
 {
     char header[1024];
     int headerLen = snprintf(header, sizeof(header),
-        "HTTP/1.1 %d %s\r\n"
-        "Content-Type: %s\r\n"
-        "Content-Length: %d\r\n"
-        "Connection: close\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
-        "Cache-Control: no-cache\r\n"
-        "\r\n",
-        statusCode, statusText, contentType, bodyLen);
+                             "HTTP/1.1 %d %s\r\n"
+                             "Content-Type: %s\r\n"
+                             "Content-Length: %d\r\n"
+                             "Connection: close\r\n"
+                             "Access-Control-Allow-Origin: *\r\n"
+                             "Cache-Control: no-cache\r\n"
+                             "\r\n",
+                             statusCode, statusText, contentType, bodyLen);
 
     send(client, header, headerLen, 0);
     if (body && bodyLen > 0)
     {
         send(client, body, bodyLen, 0);
     }
-
-    // 디버그: 응답 상태 로그
-    char debugMsg[256];
-    snprintf(debugMsg, sizeof(debugMsg), "Response sent: %d %s", statusCode, statusText);
-    WriteDebugLog(debugMsg);
 }
 
 // ============================================================================
-// 파일 전송
+// Send File
 // ============================================================================
-static void SendFile(SOCKET client, const char* filePath)
+static void SendFile(SOCKET client, const char *filePath)
 {
-    FILE* fp = fopen(filePath, "rb");
+    FILE *fp = fopen(filePath, "rb");
     if (!fp)
     {
-        WriteDebugLog("ERROR: fopen failed - sending 404");
         Send404(client);
         return;
     }
 
-    WriteDebugLog("File opened successfully");
-
-    // 파일 크기 확인
+    // Check file size
     fseek(fp, 0, SEEK_END);
     long fileSize = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
-    char debugMsg[256];
-    snprintf(debugMsg, sizeof(debugMsg), "File size: %ld bytes", fileSize);
-    WriteDebugLog(debugMsg);
-
     if (fileSize <= 0 || fileSize > 10 * 1024 * 1024)
-    {
-        WriteDebugLog("ERROR: Invalid file size - sending 500");
+    { // Max 10MB
         fclose(fp);
         Send500(client);
         return;
     }
 
-    // 파일 읽기
-    char* fileContent = (char*)malloc(fileSize);
+    // Read file
+    char *fileContent = (char *)malloc(fileSize);
     if (!fileContent)
     {
-        WriteDebugLog("ERROR: Memory allocation failed - sending 500");
         fclose(fp);
         Send500(client);
         return;
@@ -494,41 +350,35 @@ static void SendFile(SOCKET client, const char* filePath)
 
     if (bytesRead != (size_t)fileSize)
     {
-        WriteDebugLog("ERROR: File read incomplete - sending 500");
         free(fileContent);
         Send500(client);
         return;
     }
 
-    WriteDebugLog("File read complete - sending to client");
-
-    // MIME 타입 결정 및 전송
-    const char* mimeType = GetMimeType(filePath);
-    snprintf(debugMsg, sizeof(debugMsg), "MIME type: %s", mimeType);
-    WriteDebugLog(debugMsg);
-
+    // Determine MIME type and send
+    const char *mimeType = GetMimeType(filePath);
     SendResponse(client, 200, "OK", mimeType, fileContent, (int)fileSize);
 
     free(fileContent);
 }
 
 // ============================================================================
-// 404 에러
+// 404 Error
 // ============================================================================
 static void Send404(SOCKET client)
 {
-    const char* body =
+    const char *body =
         "<!DOCTYPE html><html><head><title>404 Not Found</title></head>"
         "<body><h1>404 Not Found</h1><p>The requested file was not found.</p></body></html>";
     SendResponse(client, 404, "Not Found", "text/html; charset=utf-8", body, (int)strlen(body));
 }
 
 // ============================================================================
-// 500 에러
+// 500 Error
 // ============================================================================
 static void Send500(SOCKET client)
 {
-    const char* body =
+    const char *body =
         "<!DOCTYPE html><html><head><title>500 Internal Server Error</title></head>"
         "<body><h1>500 Internal Server Error</h1></body></html>";
     SendResponse(client, 500, "Internal Server Error", "text/html; charset=utf-8", body, (int)strlen(body));

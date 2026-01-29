@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ping Monitor Dashboard</title>
+    <title>Ping Monitor v2.6 Dashboard</title>
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/notifications.css">
+    <link rel="stylesheet" href="css/outages.css">
     <link rel="stylesheet" href="css/responsive.css">
     <script src="./chart.umd.min.js"></script>
 </head>
 <body>
     <!-- Header -->
     <div class="header" id="mainHeader">
-        <h1>🌐 Ping Monitor Dashboard</h1>
-        <div class="header-subtitle">Real-time Network Monitoring</div>
+        <h1>🌐 Ping Monitor v2.6 Dashboard</h1>
+        <div class="header-subtitle">Real-time Network Monitoring with Outage Management</div>
         <button class="header-toggle" id="headerToggle" title="헤더 최소화/확대">
             <span id="toggleIcon">▲</span>
         </button>
@@ -27,6 +28,7 @@
         <div class="tab-nav">
             <button class="tab-btn active" data-tab="dashboard">📊 대시보드</button>
             <button class="tab-btn" data-tab="notifications">🔔 알림 기록</button>
+            <button class="tab-btn" data-tab="outages">🔥 장애 현황</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -265,6 +267,8 @@
         // Notification State
         let allNotifications = [];
         let currentFilter = 'all';
+        let allOutages = [];
+        let currentOutageFilter = {status: 'all', group: 'all'};
 
         // Bright Colors for Charts
         const brightColors = [
@@ -455,6 +459,8 @@
                     
                     if (targetId === 'notifications') {
                         loadNotifications();
+                    } else if (targetId === 'outages') {
+                        loadOutages();
                     }
                 });
             });
@@ -1299,6 +1305,102 @@
                 clearInterval(updateInterval);
             }
         }
+
+        // Outage Management Functions (v2.6)
+        async function loadOutages() {
+            try {
+                const response = await fetch('/outage_log.json?t=' + Date.now());
+                const data = await response.json();
+                allOutages = data.outages || [];
+                renderOutages();
+            } catch (error) {
+                console.error('장애 로그 로드 실패:', error);
+                document.getElementById('outageList').innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+            }
+        }
+
+        function renderOutages() {
+            const container = document.getElementById('outageList');
+            
+            let filtered = allOutages.filter(o => {
+                const statusMatch = currentOutageFilter.status === 'all' || o.status === currentOutageFilter.status;
+                const groupMatch = currentOutageFilter.group === 'all' || o.group === currentOutageFilter.group;
+                return statusMatch && groupMatch;
+            });
+
+            filtered.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(outage => {
+                let downtimeStr;
+                if (outage.status === 'ongoing') {
+                    const now = new Date();
+                    const start = new Date(outage.start_time);
+                    const seconds = Math.floor((now - start) / 1000);
+                    downtimeStr = formatDuration(seconds) + ' (진행 중)';
+                } else {
+                    downtimeStr = formatDuration(outage.downtime_seconds);
+                }
+
+                return `
+                    <div class="outage-card ${outage.status}">
+                        <div class="outage-header">
+                            <span class="outage-status-badge ${outage.status}">
+                                ${outage.status === 'ongoing' ? '🔴 진행중' : '🟢 복구됨'}
+                            </span>
+                            <span class="priority priority-${outage.priority}">P${outage.priority}</span>
+                        </div>
+                        <div class="outage-info">
+                            <h3>${outage.name}</h3>
+                            <p class="ip">${outage.ip}</p>
+                            <p class="group">그룹: ${outage.group}</p>
+                        </div>
+                        <div class="outage-timeline">
+                            <div class="timeline-item">
+                                <span class="label">시작:</span>
+                                <span class="time">${formatTime(outage.start_time)}</span>
+                            </div>
+                            ${outage.end_time ? `
+                            <div class="timeline-item">
+                                <span class="label">종료:</span>
+                                <span class="time">${formatTime(outage.end_time)}</span>
+                            </div>
+                            ` : ''}
+                            <div class="timeline-item">
+                                <span class="label">다운타임:</span>
+                                <span class="time">${downtimeStr}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '0초';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}시간 ${minutes}분`;
+            } else if (minutes > 0) {
+                return `${minutes}분 ${secs}초`;
+            } else {
+                return `${secs}초`;
+            }
+        }
+
+        function formatTime(timeStr) {
+            if (!timeStr) return 'N/A';
+            const date = new Date(timeStr);
+            return date.toLocaleString('ko-KR');
+        }
+
     </script>
 </body>
 </html>
