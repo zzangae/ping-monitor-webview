@@ -4,7 +4,7 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
 ![Version](https://img.shields.io/badge/version-2.5-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **GitHub**: https://github.com/zzangae/pings
 
