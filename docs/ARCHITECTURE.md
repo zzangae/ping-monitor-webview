@@ -99,8 +99,6 @@ graph TB
     style Target2 fill:#e1ffe1
 ```
 
-````
-
 ### 데이터 흐름
 
 ```mermaid
@@ -187,7 +185,6 @@ ping_monitor.exe
    ├─ ChangeServerPort() - 포트 변경 UI
    └─ RestartServer() - 서버 재시작
 ```
-````
 
 ---
 
