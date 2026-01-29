@@ -25,6 +25,10 @@ if not exist graph.html (
     echo WARNING: graph.html not found
     set MISSING_FILES=1
 )
+if not exist chart.umd.min.js (
+    echo WARNING: chart.umd.min.js not found
+    set MISSING_FILES=1
+)
 if not exist css\variables.css (
     echo WARNING: css\variables.css not found
     set MISSING_FILES=1
@@ -111,6 +115,14 @@ echo Copying files...
 copy ping_monitor.exe %DEPLOY_DIR%\ >nul
 copy graph.html %DEPLOY_DIR%\ >nul
 
+if exist chart.umd.min.js (
+    copy chart.umd.min.js %DEPLOY_DIR%\ >nul
+    echo   - chart.umd.min.js copied
+) else (
+    echo WARNING: chart.umd.min.js not found!
+    echo   Download from: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js
+)
+
 if exist ping_config.ini (
     copy ping_config.ini %DEPLOY_DIR%\ >nul
 ) else (
@@ -153,6 +165,14 @@ echo Creating README...
     echo TROUBLESHOOTING:
     echo   404 Error: Check all files are in correct location
     echo   Port Error: Right-click tray icon ^> Change Port
+    echo   Chart Error: Make sure chart.umd.min.js exists
+    echo.
+    echo REQUIRED FILES:
+    echo   ping_monitor.exe
+    echo   graph.html
+    echo   chart.umd.min.js
+    echo   ping_config.ini
+    echo   css\ folder (6 CSS files^)
     echo.
     echo FEATURES:
     echo   - Real-time ICMP ping monitoring
@@ -162,7 +182,9 @@ echo Creating README...
     echo   - Minimize/restore IP cards
     echo   - Port configuration via tray icon
     echo   - Browser close = program exit
-    echo.    
+    echo.
+    echo GitHub:
+    echo   https://github.com/zzangae/ping-monitor-webview
     echo.
 ) > %DEPLOY_DIR%\README.txt
 
