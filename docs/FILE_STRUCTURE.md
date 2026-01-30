@@ -2,13 +2,13 @@
 
 ## 문서
 
-- [시스템 아키텍처](docs/ARCHITECTURE.md)
-- [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
-- [설치 및 빌드 가이드](docs/INSTALLATION.md)
-- [사용자 가이드](docs/USER_GUIDE.md)
-- [설정 파일 상세](docs/CONFIGURATION.md)
-- [문제 해결](docs/TROUBLESHOOTING.md)
-- [버전 변경 이력](docs/CHANGELOG.md)
+- [시스템 아키텍처](ARCHITECTURE.md)
+- [파일 구조 및 배포](FILE_STRUCTURE.md)
+- [설치 및 빌드 가이드](INSTALLATION.md)
+- [사용자 가이드](USER_GUIDE.md)
+- [설정 파일 상세](CONFIGURATION.md)
+- [문제 해결](TROUBLESHOOTING.md)
+- [버전 변경 이력](CHANGELOG.md)
 
 ---
 
@@ -128,3 +128,24 @@ PingMonitor/
   }
 ]
 ```
+
+---
+
+## 📁 새로운 파일 : v2.6
+
+### 코드
+- `outage.h/c` - 장애 관리 시스템
+- `config_api.h/c` - 설정 API
+- `browser_monitor.h/c` - 브라우저 모니터링
+
+### CSS
+- `css/outages.css` - 장애 타임라인 스타일
+- `css/settings.css` - 설정 UI 스타일
+
+### 문서
+- `BROWSER_CLOSE_DETECTION.md` - 브라우저 모니터링 가이드
+- `CHART_INSTALL.md` - Chart.js 설치 가이드
+- `WHATS_NEW_v2.6.md` - 이 문서
+
+### 데이터
+- `outage_log.json` - 장애 로그 (자동 생성)
