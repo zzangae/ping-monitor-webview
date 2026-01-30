@@ -1,3 +1,5 @@
+# 3. FILE_STRUCTURE.md
+
 [메인으로 돌아가기](../README.md)
 
 ## 문서
@@ -11,8 +13,6 @@
 - [버전 변경 이력](CHANGELOG.md)
 
 ---
-
-## 3. FILE_STRUCTURE.md
 
 **포함 내용:**
 
@@ -133,19 +133,31 @@ PingMonitor/
 
 ## 📁 새로운 파일 : v2.6
 
-### 코드
-- `outage.h/c` - 장애 관리 시스템
-- `config_api.h/c` - 설정 API
-- `browser_monitor.h/c` - 브라우저 모니터링
+### 소스 코드
+```
+outage.h                    - 장애 관리 헤더
+outage.c                    - 장애 관리 구현
+config_api.h                - 설정 API 헤더
+config_api.c                - 설정 API 구현
+browser_monitor.h           - 브라우저 모니터 헤더
+browser_monitor.c           - 브라우저 모니터 구현
+```
 
-### CSS
-- `css/outages.css` - 장애 타임라인 스타일
-- `css/settings.css` - 설정 UI 스타일
+### CSS 파일
+```
+css/outages.css            - 장애 타임라인 스타일
+css/settings.css           - 설정 UI 스타일
+```
 
 ### 문서
-- `BROWSER_CLOSE_DETECTION.md` - 브라우저 모니터링 가이드
-- `CHART_INSTALL.md` - Chart.js 설치 가이드
-- `WHATS_NEW_v2.6.md` - 이 문서
+```
+BROWSER_CLOSE_DETECTION.md  - 브라우저 모니터링 완전 가이드
+CHART_INSTALL.md            - Chart.js 설치 가이드
+WHATS_NEW_v2.6.md           - v2.6 새 기능 요약
+CHANGELOG_v2.6.md           - 이 문서
+```
 
-### 데이터
-- `outage_log.json` - 장애 로그 (자동 생성)
+### 데이터 파일
+```
+outage_log.json            - 장애 로그 (자동 생성)
+```
