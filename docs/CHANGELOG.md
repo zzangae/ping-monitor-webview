@@ -1,18 +1,139 @@
+# 8. CHANGELOG.md
 [메인으로 돌아가기](../README.md)
 
 ## 문서
 
-- [시스템 아키텍처](docs/ARCHITECTURE.md)
-- [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
-- [설치 및 빌드 가이드](docs/INSTALLATION.md)
-- [사용자 가이드](docs/USER_GUIDE.md)
-- [설정 파일 상세](docs/CONFIGURATION.md)
-- [문제 해결](docs/TROUBLESHOOTING.md)
-- [버전 변경 이력](docs/CHANGELOG.md)
+- [시스템 아키텍처](ARCHITECTURE.md)
+- [파일 구조 및 배포](FILE_STRUCTURE.md)
+- [설치 및 빌드 가이드](INSTALLATION.md)
+- [사용자 가이드](USER_GUIDE.md)
+- [설정 파일 상세](CONFIGURATION.md)
+- [문제 해결](TROUBLESHOOTING.md)
+- [버전 변경 이력](CHANGELOG.md)
 
 ---
 
-## 8. CHANGELOG.md
+# v2.6
+
+## 🆕 새 기능
+
+### 장애 관리 시스템
+- 5분 연속 다운 시 자동 장애 판정
+- `outage_log.json`에 장애 이력 자동 기록
+- 그룹별 임계값 설정 가능 (서버/네트워크/방화벽/DB/웹서버/스토리지/기타)
+- 장애 시작/종료 시간, 지속 시간 추적
+
+### 통합 설정 UI
+- 대시보드 차트 설정 버튼(⚙️)에서 접근
+- **Chart Settings 탭**: IP별 표시/숨김
+- **Group Thresholds 탭**: 그룹별 장애 임계값 설정
+- **IP Group Management 탭**: IP별 그룹 분류 및 우선순위 설정
+- Empty State: 데이터 없을 때 안내 메시지 표시
+
+### IP 그룹 및 우선순위
+- 7개 그룹 지원: 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
+- 우선순위 5단계 (P1~P5)
+- `ping_config.ini`의 `[IPGroups]` 섹션에 저장
+
+### 설정 불러오기
+- 트레이 메뉴에 "설정 불러오기" 추가
+- 실행 중 `ping_config.ini` / `int_config.ini` 수정 후 즉시 반영
+- 프로그램 재시작 불필요
+- IP 추가/삭제/변경 실시간 적용
+
+### 장애 타임라인 탭
+- 대시보드에 "Outage Timeline" 탭 추가
+- 장애 이력 시각적 표시
+- 장애 시작/종료/지속 시간 표시
+- 그룹 및 우선순위별 필터링
+
+---
+
+## 🔧 개선사항
+
+### 빌드 스크립트 강화
+- 프로세스 자동 체크 및 종료 (빌드 전)
+- 디버그 모드 추가 (선택지 3번)
+  - 콘솔 창에 모든 메시지 출력
+  - `-mwindows` 플래그 제거
+  - 오류 진단 용이
+- 파일 체크 개선 (✓/✗/⚠ 아이콘)
+- Chart.js 파일 체크 및 CDN fallback 안내
+
+### Chart.js 로딩 개선
+- CDN 직접 로드로 변경
+- `chart.umd.min.js` 로컬 파일 설치 불필요
+- 인터넷 연결 시 자동 로드
+- 오프라인 사용 가이드 제공 (`CHART_INSTALL.md`)
+
+### 알림 최적화
+- 불필요한 balloon 알림 제거
+  - "설정 불러오기 완료" 제거
+  - "알림 활성화" 제거
+- 네트워크 타임아웃/복구 알림만 유지
+- 트레이 메뉴에서 알림 On/Off 가능
+
+### 코드 모듈화
+- `outage.h/c` - 장애 관리 로직 분리
+- `config_api.h/c` - 설정 파일 API 분리
+- `browser_monitor.h/c` - 브라우저 모니터링 분리
+- 코드 가독성 및 유지보수성 향상
+
+### CSS 구조 개선
+- `css/outages.css` - 장애 UI 스타일
+- `css/settings.css` - 설정 UI 스타일
+- 총 8개 CSS 파일로 모듈화
+
+---
+
+## 🐛 버그 수정
+
+### Chart.js 로딩 오류
+- 로컬 파일 누락 시 차트 표시 안 되는 문제 해결
+- CDN fallback 로직 추가
+- 오류 메시지 개선
+
+### 빌드 오류 수정
+- `STILL_ACTIVE` 중복 정의 제거
+- `browser_monitor.h` include 누락 수정
+- 컴파일 경고 제거 (`-lgdi32` 라이브러리 추가)
+
+### 파일 체크 로직
+- 필수 파일 누락 시 명확한 에러 메시지
+- 선택 파일(chart.umd.min.js)과 필수 파일 구분
+- 빌드 전 상세 파일 체크
+
+### 변수 정의 오류
+- `g_browserStartTime` 정의 누락 수정
+- `BROWSER_STARTUP_GRACE_PERIOD` 정의 추가
+- `ID_TIMER_BROWSER_CHECK` 중복 정의 제거
+
+---
+
+## ⚠️ 알려진 이슈
+
+### 설정 UI 저장 기능 미구현
+- **현재**: 설정 UI는 읽기 전용
+- **해결 방법**: `ping_config.ini` 파일 직접 수정 후 "설정 불러오기"
+- **향후 계획**: v2.7에서 `/api/save_config` 엔드포인트 구현 예정
+
+### 브라우저 자동 종료 비활성화
+- **원인**: 브라우저가 새 탭으로 열릴 경우 즉시 종료되는 안정성 문제
+- **현재 상태**: 타이머 비활성화
+- **해결 방법**: 트레이 아이콘 우클릭 → "종료"로 수동 종료
+- **향후 계획**: 안정적인 감지 로직 재구현 예정
+
+### Chart.js CDN 의존성
+- **제한**: 인터넷 연결 필요
+- **해결 방법**: 로컬 파일 다운로드 (CHART_INSTALL.md 참조)
+- **영향**: 오프라인 환경에서 차트 표시 안 됨
+
+### 브라우저 멀티 윈도우
+- **제한**: 브라우저가 새 탭으로 열리면 프로세스 감지 불가
+- **영향**: 브라우저 자동 종료 기능 작동 안 함
+- **해결 방법**: HTTP 타임아웃 방식으로 변경 검토 중
+
+---
 
 **포함 내용:**
 
@@ -21,7 +142,7 @@
 - Breaking Changes
 - 마이그레이션 가이드
 
-### v2.5 (Current)
+# v2.5
 
 **주요 변경 사항:**
 
@@ -39,20 +160,20 @@
 - 한글 경로에서 파일 로드 실패 문제 문서화
 - CDN 접속 차단 시 Chart.js 로드 실패 해결
 
-### v2.3
+# v2.3
 
 - 알림 기능 추가 (타임아웃/복구)
 - 알림 로그 저장 (notification_log.json)
 - 알림 설정 [Settings] 섹션
 
-### v2.0
+# v2.0
 
 - 웹 기반 대시보드 도입
 - Chart.js 그래프 시각화
 - 드래그 앤 드롭 기능
 - IP 필터링
 
-### v1.0
+# v1.0
 
 - 기본 ICMP ping 모니터링
 - 시스템 트레이 통합
