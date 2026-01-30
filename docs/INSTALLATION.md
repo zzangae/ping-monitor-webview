@@ -2,13 +2,13 @@
 
 ## 문서
 
-- [시스템 아키텍처](docs/ARCHITECTURE.md)
-- [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
-- [설치 및 빌드 가이드](docs/INSTALLATION.md)
-- [사용자 가이드](docs/USER_GUIDE.md)
-- [설정 파일 상세](docs/CONFIGURATION.md)
-- [문제 해결](docs/TROUBLESHOOTING.md)
-- [버전 변경 이력](docs/CHANGELOG.md)
+- [시스템 아키텍처](ARCHITECTURE.md)
+- [파일 구조 및 배포](FILE_STRUCTURE.md)
+- [설치 및 빌드 가이드](INSTALLATION.md)
+- [사용자 가이드](USER_GUIDE.md)
+- [설정 파일 상세](CONFIGURATION.md)
+- [문제 해결](TROUBLESHOOTING.md)
+- [버전 변경 이력](CHANGELOG.md)
 
 ---
 
@@ -164,6 +164,41 @@ notepad int_config.ini
 # 3. 빌드 및 실행
 build.bat
 ```
+
+---
+
+## 🚀 업그레이드 방법
+
+### v2.5에서 v2.6으로
+
+1. **기존 데이터 백업**
+   ```batch
+   copy ping_config.ini ping_config.ini.bak
+   copy notification_log.json notification_log.json.bak
+   ```
+
+2. **새 파일 배치**
+   - v2.6 파일 압축 해제
+   - 기존 `ping_config.ini` 복사
+
+3. **설정 파일 수정**
+   ```ini
+   # ping_config.ini에 추가
+   [OutageDetection]
+   OutageThreshold=300
+   
+   [IPGroups]
+   # IP별 그룹과 우선순위 추가
+   ```
+
+4. **프로그램 실행**
+   ```batch
+   ping_monitor.exe
+   ```
+
+5. **브라우저에서 확인**
+   - 장애 타임라인 탭 확인
+   - 설정 UI (⚙️) 확인
 
 ---
 
