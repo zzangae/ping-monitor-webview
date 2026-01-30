@@ -1,3 +1,5 @@
+# 6. CONFIGURATION.md
+
 [메인으로 돌아가기](../README.md)
 
 ## 문서
@@ -12,7 +14,30 @@
 
 ---
 
-## 6. CONFIGURATION.md
+**ping_config.ini - 새 섹션 추가: v2.6**
+
+```ini
+[OutageDetection]
+OutageThreshold=300
+ServerOutageThreshold=180
+NetworkOutageThreshold=300
+FirewallOutageThreshold=120
+DatabaseOutageThreshold=180
+WebServerOutageThreshold=240
+StorageOutageThreshold=300
+OtherOutageThreshold=300
+
+[IPGroups]
+192.168.0.1=네트워크,1
+10.0.0.5=서버,1
+8.8.8.8=네트워크,2
+```
+
+**형식:**
+- `IPGroups`: `IP주소=그룹명,우선순위`
+- 우선순위: 1(최고) ~ 5(최저)
+
+---
 
 **포함 내용:**
 
@@ -44,21 +69,20 @@ ConsecutiveFailures=3           # 연속 실패 임계값
 1.1.1.1,Cloudflare DNS
 ```
 
-**새 섹션 추가: v2.6**
-```ini
-[OutageDetection]
-OutageThreshold=300
-ServerOutageThreshold=180
-NetworkOutageThreshold=300
-FirewallOutageThreshold=120
-DatabaseOutageThreshold=180
-WebServerOutageThreshold=240
-StorageOutageThreshold=300
-OtherOutageThreshold=300
+### ping_config.ini (공개 IP 설정)
 
-[IPGroups]
-192.168.0.1=네트워크,1
-10.0.0.5=서버,1
+```ini
+[Settings]
+NotificationsEnabled=1           # 알림 활성화 (0=비활성화, 1=활성화)
+NotificationCooldown=60          # 알림 쿨다운 (초)
+NotifyOnTimeout=1                # 타임아웃 알림
+NotifyOnRecovery=1               # 복구 알림
+ConsecutiveFailures=3            # 연속 실패 임계값
+
+# IP 목록 (형식: IP, 이름)
+8.8.8.8, Google DNS
+1.1.1.1, Cloudflare DNS
+208.67.222.222, OpenDNS
 ```
 
 ### int_config.ini (선택, 비공개)
@@ -90,7 +114,7 @@ copy int_config.ini.example int_config.ini
 notepad int_config.ini
 ```
 
-### 3. 설정 파일 형식
+### 설정 파일 형식
 
 #### 공통 규칙
 
@@ -100,38 +124,6 @@ key=value          # 설정 값
 ip,name            # IP 설정 (쉼표로 구분)
 # 주석             # 주석
                    # 빈 줄 (무시됨)
-```
-
-#### 로딩 순서
-
-```
-1. ping_config.ini 로드 (필수)
-   └─ [Settings] 섹션 적용
-   └─ IP 목록 추가
-
-2. int_config.ini 로드 (선택)
-   └─ [Settings] 무시 (ping_config.ini 우선)
-   └─ IP 목록 추가
-
-3. 결과: 두 파일의 IP가 합쳐짐
-```
-
----
-
-### ping_config.ini (공개 IP 설정)
-
-```ini
-[Settings]
-NotificationsEnabled=1           # 알림 활성화 (0=비활성화, 1=활성화)
-NotificationCooldown=60          # 알림 쿨다운 (초)
-NotifyOnTimeout=1                # 타임아웃 알림
-NotifyOnRecovery=1               # 복구 알림
-ConsecutiveFailures=3            # 연속 실패 임계값
-
-# IP 목록 (형식: IP, 이름)
-8.8.8.8, Google DNS
-1.1.1.1, Cloudflare DNS
-208.67.222.222, OpenDNS
 ```
 
 ### int_config.ini (내부 IP 설정)
@@ -149,6 +141,20 @@ ConsecutiveFailures=3            # 연속 실패 임계값
 - `int_config.ini`: Git에서 무시 (.gitignore) (보안 IP)
 - 최소 1개 이상의 IP가 설정되어야 프로그램 실행 가능
 - IP와 이름은 쉼표(,)로 구분
+
+### 로딩 순서
+
+```
+1. ping_config.ini 로드 (필수)
+   └─ [Settings] 섹션 적용
+   └─ IP 목록 추가
+
+2. int_config.ini 로드 (선택)
+   └─ [Settings] 무시 (ping_config.ini 우선)
+   └─ IP 목록 추가
+
+3. 결과: 두 파일의 IP가 합쳐짐
+```
 
 ---
 
