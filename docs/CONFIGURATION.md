@@ -2,13 +2,13 @@
 
 ## 문서
 
-- [시스템 아키텍처](docs/ARCHITECTURE.md)
-- [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
-- [설치 및 빌드 가이드](docs/INSTALLATION.md)
-- [사용자 가이드](docs/USER_GUIDE.md)
-- [설정 파일 상세](docs/CONFIGURATION.md)
-- [문제 해결](docs/TROUBLESHOOTING.md)
-- [버전 변경 이력](docs/CHANGELOG.md)
+- [시스템 아키텍처](ARCHITECTURE.md)
+- [파일 구조 및 배포](FILE_STRUCTURE.md)
+- [설치 및 빌드 가이드](INSTALLATION.md)
+- [사용자 가이드](USER_GUIDE.md)
+- [설정 파일 상세](CONFIGURATION.md)
+- [문제 해결](TROUBLESHOOTING.md)
+- [버전 변경 이력](CHANGELOG.md)
 
 ---
 
@@ -42,6 +42,23 @@ ConsecutiveFailures=3           # 연속 실패 임계값
 # 해외 DNS
 8.8.8.8,Google DNS
 1.1.1.1,Cloudflare DNS
+```
+
+**새 섹션 추가: v2.6**
+```ini
+[OutageDetection]
+OutageThreshold=300
+ServerOutageThreshold=180
+NetworkOutageThreshold=300
+FirewallOutageThreshold=120
+DatabaseOutageThreshold=180
+WebServerOutageThreshold=240
+StorageOutageThreshold=300
+OtherOutageThreshold=300
+
+[IPGroups]
+192.168.0.1=네트워크,1
+10.0.0.5=서버,1
 ```
 
 ### int_config.ini (선택, 비공개)
