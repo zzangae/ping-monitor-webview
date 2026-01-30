@@ -19,6 +19,7 @@ static HANDLE g_serverThread = NULL;
 static BOOL g_serverRunning = FALSE;
 static int g_serverPort = HTTP_PORT_DEFAULT;
 static WCHAR g_rootPath[HTTP_MAX_PATH] = {0};
+static DWORD g_lastRequestTime = 0; // For browser close detection
 
 // ============================================================================
 // Internal Function Declarations
@@ -134,6 +135,27 @@ int GetHttpServerPort(void)
 }
 
 // ============================================================================
+// Get Last Request Time (for browser close detection)
+// ============================================================================
+DWORD GetLastRequestTime(void)
+{
+    if (g_lastRequestTime == 0)
+    {
+        return 0; // Never requested
+    }
+
+    return (GetTickCount() - g_lastRequestTime) / 1000; // Seconds since last request
+}
+
+// ============================================================================
+// Reset Last Request Time
+// ============================================================================
+void ResetLastRequestTime(void)
+{
+    g_lastRequestTime = GetTickCount();
+}
+
+// ============================================================================
 // Server Thread
 // ============================================================================
 static DWORD WINAPI HttpServerThread(LPVOID lpParam)
@@ -168,6 +190,9 @@ static DWORD WINAPI HttpServerThread(LPVOID lpParam)
 // ============================================================================
 static void HandleClient(SOCKET clientSocket)
 {
+    // Record request time for browser close detection
+    g_lastRequestTime = GetTickCount();
+
     char buffer[HTTP_BUFFER_SIZE];
     int received = recv(clientSocket, buffer, HTTP_BUFFER_SIZE - 1, 0);
 

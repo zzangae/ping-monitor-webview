@@ -45,4 +45,15 @@ BOOL IsHttpServerRunning(void);
  */
 int GetHttpServerPort(void);
 
+/**
+ * Get last HTTP request time (for browser close detection)
+ * @return Time in seconds since last request (0 if never requested)
+ */
+DWORD GetLastRequestTime(void);
+
+/**
+ * Reset last request time to current time
+ */
+void ResetLastRequestTime(void);
+
 #endif // HTTP_SERVER_H
