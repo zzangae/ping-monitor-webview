@@ -2,13 +2,13 @@
 
 ## 문서
 
-- [시스템 아키텍처](docs/ARCHITECTURE.md)
-- [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
-- [설치 및 빌드 가이드](docs/INSTALLATION.md)
-- [사용자 가이드](docs/USER_GUIDE.md)
-- [설정 파일 상세](docs/CONFIGURATION.md)
-- [문제 해결](docs/TROUBLESHOOTING.md)
-- [버전 변경 이력](docs/CHANGELOG.md)
+- [시스템 아키텍처](ARCHITECTURE.md)
+- [파일 구조 및 배포](FILE_STRUCTURE.md)
+- [설치 및 빌드 가이드](INSTALLATION.md)
+- [사용자 가이드](USER_GUIDE.md)
+- [설정 파일 상세](CONFIGURATION.md)
+- [문제 해결](TROUBLESHOOTING.md)
+- [버전 변경 이력](CHANGELOG.md)
 
 ---
 
@@ -39,6 +39,8 @@
      - 알림 활성화 (토글)
      - 포트 변경
      - 종료
+
+---
 
 ### 대시보드 사용
 
@@ -72,3 +74,22 @@
 - 타임아웃/복구 알림 이력 표시
 - 시간, IP, 이름, 타입별 정렬
 - 날짜별 필터링
+
+---
+
+## 💡 사용 팁 : v2.6
+
+### 장애 관리
+- 중요한 서버는 임계값을 짧게 (2-3분)
+- 일반 장비는 기본값 (5분) 사용
+- `outage_log.json`을 정기적으로 분석
+
+### 설정 UI
+- 대시보드에서 직접 수정 가능
+- 변경 후 "Save" 버튼 (향후 구현 예정)
+- 현재는 `ping_config.ini` 직접 수정
+
+### 설정 불러오기
+- IP 추가/삭제 후 바로 적용
+- 프로그램 재시작 불필요
+- 브라우저 새로고침 (F5) 필요
