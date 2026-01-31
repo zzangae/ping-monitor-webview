@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Monitor v2.6</title>
+    <link rel="stylesheet" href="/web/css/variables.css">
+    <link rel="stylesheet" href="/web/css/base.css">
+    <link rel="stylesheet" href="/web/css/components.css">
+    <link rel="stylesheet" href="/web/css/dashboard.css">
+    <link rel="stylesheet" href="/web/css/notifications.css">
+    <link rel="stylesheet" href="/web/css/responsive.css">
+    <script src="/web/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Ping Monitor Dashboard</h1>
+            <div id="statusBadge">대기 중</div>
+        </header>
+
+        <main class="main-content">
+            <div id="statsGrid"></div>
+            
+            <div class="chart-container">
+                <h2>응답 시간 추이</h2>
+                <canvas id="latencyChart"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let chart = null;
+
+        function initChart() {
+            const ctx = document.getElementById('latencyChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'linear' },
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function updateChart(data) {
+            if (!chart || !data.targets) return;
+
+            const datasets = data.targets.map((target, index) => ({
+                label: `${target.name} (${target.ip})`,
+                data: target.history.map((latency, i) => ({ x: i, y: latency })),
+                borderColor: `hsl(${index * 360 / data.targets.length}, 70%, 50%)`,
+                tension: 0.4
+            }));
+
+            chart.data.datasets = datasets;
+            chart.update('none');
+        }
+
+        function updateStats(data) {
+            const statsGrid = document.getElementById('statsGrid');
+            if (!data.targets) return;
+
+            statsGrid.innerHTML = data.targets.map(target => `
+                <div style="padding: 10px; margin: 5px; border: 1px solid #444; background: #2a2a2a;">
+                    <h3>${target.name}</h3>
+                    <div>${target.ip}</div>
+                    <div>상태: ${target.online ? '온라인' : '오프라인'}</div>
+                    <div>응답: ${target.latency} ms</div>
+                    <div>성공률: ${target.total > 0 ? ((target.success / target.total) * 100).toFixed(1) : 0}%</div>
+                </div>
+            `).join('');
+        }
+
+        function fetchData() {
+            fetch('/data/ping_data.json')
+                .then(response => response.json())
+                .then(data => {
+                    updateStats(data);
+                    updateChart(data);
+                })
+                .catch(error => console.error('데이터 로드 실패:', error));
+        }
+
+        window.addEventListener('load', () => {
+            initChart();
+            fetchData();
+            setInterval(fetchData, 1000);
+        });
+    </script>
+</body>
+</html>
