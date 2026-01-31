@@ -1,43 +1,39 @@
-/**
- * Notification Module
- * Balloon notifications and logging
- */
-
 #ifndef NOTIFICATION_H
 #define NOTIFICATION_H
 
 #include "types.h"
 
-// ============================================================================
-// Function Declarations
-// ============================================================================
+// Custom notification window
+#define WM_SHOW_NOTIFICATION (WM_USER + 100)
+#define NOTIFICATION_DISPLAY_TIME 5000
+#define NOTIFICATION_WIDTH 350
+#define NOTIFICATION_HEIGHT 100
 
-/**
- * Load notification settings from config file
- */
+typedef struct
+{
+    HWND hwnd;
+    wchar_t title[128];
+    wchar_t message[256];
+    DWORD type;
+    DWORD startTime;
+} NotificationWindow;
+
+typedef struct
+{
+    wchar_t title[128];
+    wchar_t message[256];
+    DWORD type;
+} NotificationRequest;
+
 void LoadNotificationSettings(void);
-
-/**
- * Show balloon notification in system tray
- * @param title Notification title
- * @param message Notification message
- * @param infoFlags Icon flags (NIIF_INFO, NIIF_WARNING, NIIF_ERROR)
- */
 void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags);
-
-/**
- * Check target status and send notifications
- * @param target Target to check
- */
 void CheckAndNotify(IPTarget *target);
-
-/**
- * Save notification to log file
- * @param type Notification type ("timeout" or "recovery")
- * @param name Target name
- * @param ip Target IP
- * @param timeStr Time string
- */
 void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr);
 
-#endif // NOTIFICATION_H
+// Custom notification functions
+void InitNotificationSystem(void);
+void ShowCustomNotification(const wchar_t *title, const wchar_t *message, DWORD type);
+void ProcessShowNotification(NotificationRequest *req);
+void CleanupNotificationSystem(void);
+
+#endif

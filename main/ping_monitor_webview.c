@@ -12,6 +12,7 @@
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "gdi32.lib")
 
 // Module headers
 #include "module/types.h"
@@ -227,6 +228,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case ID_TRAY_NOTIFICATIONS:
             g_notifSettings.enabled = !g_notifSettings.enabled;
+            if (!g_notifSettings.enabled)
+            {
+                CleanupNotificationSystem();
+            }
             wprintf(L"알림: %s\n", g_notifSettings.enabled ? L"활성화" : L"비활성화");
             break;
 
@@ -251,9 +256,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         break;
 
+    case WM_SHOW_NOTIFICATION:
+    {
+        NotificationRequest *req = (NotificationRequest *)lParam;
+        if (req)
+        {
+            ProcessShowNotification(req);
+            free(req);
+        }
+        break;
+    }
+
     case WM_DESTROY:
         KillTimer(hwnd, ID_TIMER_BROWSER_CHECK);
         CleanupBrowserMonitor();
+        CleanupNotificationSystem();
         RemoveTrayIcon();
         PostQuitMessage(0);
         break;
@@ -279,6 +296,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     InitializeCriticalSection(&g_logLock);
     InitOutageSystem();
+    InitNotificationSystem();
 
     if (!CheckRequiredFiles())
     {
@@ -405,6 +423,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     StopMonitoring();
     StopHttpServer();
+    CleanupNotificationSystem();
     DeleteCriticalSection(&g_logLock);
     WSACleanup();
 
