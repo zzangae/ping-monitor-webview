@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Monitor v2.6 Dashboard</title>
+    <link rel="stylesheet" href="/web/css/variables.css">
+    <link rel="stylesheet" href="/web/css/base.css">
+    <link rel="stylesheet" href="/web/css/components.css">
+    <link rel="stylesheet" href="/web/css/dashboard.css">
+    <link rel="stylesheet" href="/web/css/notifications.css">
+    <link rel="stylesheet" href="/web/css/outages.css">
+    <link rel="stylesheet" href="/web/css/settings.css">
+    <link rel="stylesheet" href="/web/css/responsive.css">
+    <script src="/web/chart.umd.min.js"></script>
+
+</head>
+<body>
+    <!-- Header -->
+    <div class="header" id="mainHeader">
+        <h1>🌐 Ping Monitor v2.6 Dashboard</h1>
+        <div class="header-subtitle">Real-time Network Monitoring with Outage Management</div>
+        <button class="header-toggle" id="headerToggle" title="헤더 최소화/확대">
+            <span id="toggleIcon">▲</span>
+        </button>
+    </div>
+
+    <!-- Tab Navigation -->
+        <div class="container">
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="dashboard">📊 대시보드</button>
+            <button class="tab-btn" data-tab="notifications">🔔 알림 기록</button>
+            <button class="tab-btn" data-tab="outages">🔥 장애 현황</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div class="tab-content active" id="dashboard">
+            <!-- Unified Control Bar -->
+            <div class="unified-control-bar">
+                <!-- Time Info -->
+                <div class="control-group">
+                    <div class="time-display">
+                        <div class="time-label">현재 시간</div>
+                        <div class="time-value large" id="currentTime">00:00:00</div>
+                    </div>
+                    <div class="time-display">
+                        <div class="time-label">현재 날짜</div>
+                        <div class="time-value" id="currentDate">0000-00-00</div>
+                    </div>
+                    <div class="time-display">
+                        <div class="time-label">모니터링 시간</div>
+                        <div class="time-value" id="uptime">00:00:00</div>
+                    </div>
+                </div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Tab & Control Buttons -->
+                <div class="control-group">
+                    <button type="button" class="btn btn-primary" id="toggleBtn">일시정지</button>
+                    <button type="button" class="btn btn-success" id="refreshBtn">새로고침</button>
+                </div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Stats -->
+                <div class="control-group" style="flex: 1; justify-content: space-around;">
+                    <div class="stat-item-inline">
+                        <div class="stat-label">전체 IP</div>
+                        <div class="stat-value" id="totalIPs">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">온라인</div>
+                        <div class="stat-value" style="color: var(--success);" id="onlineCount">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">오프라인</div>
+                        <div class="stat-value" style="color: var(--error);" id="offlineCount">0</div>
+                    </div>
+                    <div class="stat-item-inline">
+                        <div class="stat-label">평균 지연</div>
+                        <div class="stat-value" id="avgLatency">0</div>
+                    </div>
+                </div>
+                
+                <div class="control-divider"></div>
+                
+                <!-- Sort Controls -->
+                <div class="control-group">
+                    <button class="card-sort-btn" id="sortByName">이름순</button>
+                    <button class="card-sort-btn" id="sortByLatency">지연순</button>
+                    <button class="card-sort-btn" id="sortByStatus">상태순</button>
+                </div>
+            </div>
+
+            <!-- Comparison Chart -->
+            <div class="card" id="comparisonChartCard">
+                <div class="card-header">
+                    <div class="card-title">IP 비교 타임라인</div>
+                    <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart Settings Modal -->
+            <div class="modal" id="chartSettingsModal">
+                <div class="modal-content" style="max-width: 400px;">
+                    <div class="modal-header">
+                        <h3>표시할 IP 선택</h3>
+                        <button class="modal-close" id="closeChartSettings">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                <!-- Settings Tabs -->
+                <div class="settings-tabs">
+                    <button class="settings-tab-btn active" data-settings-tab="chart">
+                        📊 차트 설정
+                    </button>
+                    <button class="settings-tab-btn" data-settings-tab="thresholds">
+                        ⏱️ 그룹별 임계값
+                    </button>
+                    <button class="settings-tab-btn" data-settings-tab="ipgroups">
+                        📋 IP 그룹 관리
+                    </button>
+                </div>
+                
+                <div class="settings-success" id="settingsSuccess" style="margin-top: 16px;">
+                    ✓ 설정이 저장되었습니다!
+                </div>
+                
+                <!-- Tab 1: 차트 설정 (기존) -->
+                <div class="settings-tab-content active" id="settings-chart">
+
+                        <div class="chart-settings-controls">
+                            <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
+                            <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
+                            <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
+                        </div>
+                        <div class="ip-checkbox-list" id="ipCheckboxList">
+                            <!-- IP 체크박스가 동적으로 추가됩니다 -->
+                        
+                </div>
+                
+                <!-- Tab 2: 그룹별 임계값 -->
+                <div class="settings-tab-content" id="settings-thresholds">
+                    <!-- Empty State Guide -->
+                    <div id="thresholdEmptyState" class="empty-state" style="display: block;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">⏱️</div>
+                        <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">그룹별 임계값 설정</h3>
+                        <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
+                            각 그룹별로 장애 판정 시간을 커스터마이즈할 수 있습니다.<br>
+                            IP가 설정된 시간(초) 동안 연속으로 다운되면 장애로 기록됩니다.<br><br>
+                            <strong>예시:</strong> 서버 그룹 = 180초 → 3분간 다운 시 장애 기록
+                        </p>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div id="thresholdContent" style="display: none;">
+                    <div class="settings-section">
+                        <div class="settings-section-title">
+                            ⚡ 기본 임계값
+                        </div>
+                        <div class="settings-form-group">
+                            <label class="settings-label">장애 판정 임계값 (초)</label>
+                            <input type="number" class="settings-input" id="defaultThreshold" 
+                                   value="300" min="30" max="3600" step="30">
+                            <div class="settings-help">
+                                IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <div class="settings-section-title">
+                            📊 그룹별 커스텀 임계값
+                        </div>
+                        <table class="threshold-table">
+                            <thead>
+                                <tr>
+                                    <th>그룹</th>
+                                    <th>임계값 (초)</th>
+                                    <th>설명</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>🖥️ 서버</td>
+                                    <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">서버: 3분 (180초)</td>
+                                </tr>
+                                <tr>
+                                    <td>🌐 네트워크</td>
+                                    <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">네트워크: 5분 (300초)</td>
+                                </tr>
+                                <tr>
+                                    <td>🛡️ 방화벽</td>
+                                    <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">방화벽: 2분 (120초)</td>
+                                </tr>
+                                <tr>
+                                    <td>💾 데이터베이스</td>
+                                    <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">데이터베이스: 3분 (180초)</td>
+                                </tr>
+                                <tr>
+                                    <td>🌍 웹서버</td>
+                                    <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">웹서버: 4분 (240초)</td>
+                                </tr>
+                                <tr>
+                                    <td>📦 스토리지</td>
+                                    <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">스토리지: 5분 (300초)</td>
+                                </tr>
+                                <tr>
+                                    <td>🔧 기타</td>
+                                    <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
+                                    <td class="settings-help">기타: 5분 (300초)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 3: IP 그룹 관리 -->
+                <div class="settings-tab-content" id="settings-ipgroups">
+                    <!-- Empty State Guide -->
+                    <div id="ipgroupEmptyState" class="empty-state" style="display: block;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🏷️</div>
+                        <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">IP 그룹 및 우선순위 관리</h3>
+                        <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
+                            모니터링 중인 IP를 그룹으로 분류하고 우선순위를 설정할 수 있습니다.<br>
+                            우선순위 1이 가장 높으며, 장애 발생 시 중요도를 판단하는 기준이 됩니다.<br><br>
+                            <strong>그룹 종류:</strong> 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
+                        </p>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div id="ipgroupContent" style="display: none;">
+                    <div class="settings-section">
+                        <div class="settings-section-title">
+                            🏷️ IP별 그룹 및 우선순위
+                        </div>
+                        <div class="settings-help" style="margin-bottom: 16px;">
+                            각 IP의 그룹과 우선순위를 설정합니다. 우선순위 1이 가장 높습니다.
+                        </div>
+                        <table class="ip-config-table" id="ipConfigTable">
+                            <thead>
+                                <tr>
+                                    <th>IP 주소</th>
+                                    <th>이름</th>
+                                    <th>그룹</th>
+                                    <th>우선순위 (1-5)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ipConfigTableBody">
+                                <!-- Dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+            </div>
+
+            <!-- Minimized Cards Area -->
+            <div id="minimizedCardsArea" class="minimized-cards-area" style="display: none;">
+                <div class="minimized-area-header">
+                    <span class="minimized-area-title">📦 최소화된 IP</span>
+                    <span class="minimized-count" id="minimizedCount">0</span>
+                </div>
+                <div id="minimizedCardsContainer" class="minimized-cards-container"></div>
+            </div>
+
+            <!-- IP Cards -->
+            <div id="ipCardsContainer" class="ip-grid"></div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div class="tab-content" id="notifications">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">전체 알림</div>
+                    <div class="stat-value" id="notifTotalCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">타임아웃</div>
+                    <div class="stat-value" style="color: var(--error);" id="notifTimeoutCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">복구</div>
+                    <div class="stat-value" style="color: var(--success);" id="notifRecoveryCount">0</div>
+                </div>
+            </div>
+
+            <!-- Notification Log -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">알림 기록</div>
+                </div>
+                
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">전체</button>
+                    <button class="filter-btn" data-filter="timeout">타임아웃만</button>
+                    <button class="filter-btn" data-filter="recovery">복구만</button>
+                </div>
+
+                <div class="notification-list" id="notificationList">
+                    <div class="loading">알림 기록을 불러오는 중...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="modalTitle">IP 상세 정보</h2>
+                    <p id="modalSubtitle" style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;"></p>
+                </div>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Stats -->
+                <div class="modal-stats">
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">현재 지연시간</div>
+                        <div class="modal-stat-value" id="modalLatency">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">최소</div>
+                        <div class="modal-stat-value" style="color: var(--success);" id="modalMin">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">평균</div>
+                        <div class="modal-stat-value" style="color: var(--info);" id="modalAvg">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">최대</div>
+                        <div class="modal-stat-value" style="color: var(--error);" id="modalMax">0 ms</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">패킷 손실률</div>
+                        <div class="modal-stat-value" id="modalLoss">0%</div>
+                    </div>
+                    <div class="modal-stat-card">
+                        <div class="modal-stat-label">상태</div>
+                        <div class="modal-stat-value" id="modalStatus">오프라인</div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="modal-chart-container">
+                    <canvas id="modalChart"></canvas>
+                </div>
+
+                <!-- Details -->
+                <div class="modal-details">
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">총 요청</div>
+                        <div class="modal-detail-value" id="modalTotal">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">성공</div>
+                        <div class="modal-detail-value" style="color: var(--success);" id="modalSuccess">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">실패</div>
+                        <div class="modal-detail-value" style="color: var(--error);" id="modalFailed">0</div>
+                    </div>
+                    <div class="modal-detail-item">
+                        <div class="modal-detail-label">마지막 응답 시간</div>
+                        <div class="modal-detail-value" id="modalLastResponse">--:--:--</div>
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <script>
+        // Global State
+        let isRunning = true;
+        let updateInterval;
+        let timeInterval;
+        let comparisonChart;
+        let ipCharts = {};
+        let currentData = null;
+        let draggedElement = null;
+        let draggedIndex = null;
+        let startTime = Date.now();
+        let pausedElapsed = 0;
+        let pausedTime = 0;
+        let modalChart = null;
+        let currentModalTarget = null;
+        
+        // Chart Visibility
+        let visibleIPs = new Set();
+        
+        // Notification State
+        let allNotifications = [];
+        let currentFilter = 'all';
+        let allOutages = [];
+        let currentOutageFilter = {status: 'all', group: 'all'};
+
+        // Bright Colors for Charts
+        const brightColors = [
+            '#FF6B9D', '#C44569', '#FFA07A', '#FF8C42',
+            '#FFD93D', '#6BCF7F', '#4ECDC4', '#45B7D1',
+            '#5F27CD', '#A55EEA', '#FF6348', '#FF9FF3',
+            '#54A0FF', '#48DBFB', '#1DD1A1', '#00D2D3',
+            '#FD79A8', '#FDCB6E', '#6C5CE7', '#A29BFE',
+            '#74B9FF', '#81ECEC', '#55EFC4', '#FFEAA7'
+        ];
+
+        // DOM이 준비된 후 실행
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM 로드 완료');
+            
+            // Initialize event listeners
+            initializeEventListeners();
+            
+            // Initialize charts and data
+            initComparisonChart();
+            loadData();
+            startUpdates();
+            
+            // Start time updates
+            updateTime();
+            timeInterval = setInterval(updateTime, 1000);
+            
+            // Load saved states
+            loadHeaderState();
+        });
+
+        // 브라우저 종료 감지
+        let isRefreshing = false;
+        
+        window.addEventListener('beforeunload', function(e) {
+            // 새로고침인지 확인
+            if (performance.navigation.type === 1) {
+                isRefreshing = true;
+                return;
+            }
+            
+            // 브라우저 닫기 시 서버 종료 요청
+            if (!isRefreshing) {
+                navigator.sendBeacon('/shutdown');
+            }
+        });
+
+        function initializeEventListeners() {
+            // Header Toggle
+            const headerToggle = document.getElementById('headerToggle');
+            if (headerToggle) {
+                headerToggle.addEventListener('click', () => {
+                    const header = document.getElementById('mainHeader');
+                    const icon = document.getElementById('toggleIcon');
+                    const comparisonCard = document.getElementById('comparisonChartCard');
+                    
+                    const isCollapsed = header.classList.toggle('collapsed');
+                    icon.textContent = isCollapsed ? '▼' : '▲';
+                    
+                    // IP 비교 타임라인도 숨김/표시
+                    if (comparisonCard) {
+                        comparisonCard.style.display = isCollapsed ? 'none' : 'block';
+                    }
+                    
+                    // 상태 저장
+                    localStorage.setItem('headerCollapsed', isCollapsed ? '1' : '0');
+                });
+            }
+
+            // Control Buttons
+            const toggleBtn = document.getElementById('toggleBtn');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    isRunning = !isRunning;
+                    toggleBtn.textContent = isRunning ? '일시정지' : '시작';
+                    toggleBtn.className = isRunning ? 'btn btn-primary' : 'btn btn-success';
+                    
+                    if (isRunning) {
+                        startUpdates();
+                        if (pausedTime > 0) {
+                            const pauseDuration = Date.now() - pausedTime;
+                            startTime += pauseDuration;
+                            pausedTime = 0;
+                        }
+                    } else {
+                        stopUpdates();
+                        pausedTime = Date.now();
+                    }
+                });
+            }
+
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const originalText = refreshBtn.textContent;
+                    
+                    try {
+                        refreshBtn.textContent = '새로고침 중...';
+                        refreshBtn.disabled = true;
+                        
+                        startTime = Date.now();
+                        pausedTime = 0;
+                        pausedElapsed = 0;
+                        updateTime();
+                        
+                        if (comparisonChart) {
+                            comparisonChart.data.labels = [];
+                            comparisonChart.data.datasets = [];
+                            comparisonChart.update();
+                        }
+                        
+                        Object.keys(ipCharts).forEach(key => {
+                            if (ipCharts[key]) {
+                                ipCharts[key].destroy();
+                            }
+                        });
+                        ipCharts = {};
+                        
+                        const ipCardsContainer = document.getElementById('ipCardsContainer');
+                        if (ipCardsContainer) {
+                            ipCardsContainer.innerHTML = '';
+                        }
+                        
+                        const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+                        if (minimizedCardsContainer) {
+                            minimizedCardsContainer.innerHTML = '';
+                        }
+                        const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+                        if (minimizedCardsArea) {
+                            minimizedCardsArea.style.display = 'none';
+                        }
+                        
+                        await loadData();
+                        
+                        const notificationTab = document.getElementById('notifications');
+                        if (notificationTab && notificationTab.classList.contains('active')) {
+                            await loadNotifications();
+                        }
+                    } catch (error) {
+                        console.error('새로고침 실패:', error);
+                    } finally {
+                        refreshBtn.textContent = originalText;
+                        refreshBtn.disabled = false;
+                    }
+                });
+            }
+
+            // Sort Buttons
+            const sortByName = document.getElementById('sortByName');
+            const sortByLatency = document.getElementById('sortByLatency');
+            const sortByStatus = document.getElementById('sortByStatus');
+            
+            if (sortByName) sortByName.addEventListener('click', () => sortIPCards('name'));
+            if (sortByLatency) sortByLatency.addEventListener('click', () => sortIPCards('latency'));
+            if (sortByStatus) sortByStatus.addEventListener('click', () => sortIPCards('status'));
+
+            // Modal Buttons
+            const modalCloseBtn = document.getElementById('modalClose');
+            const detailModal = document.getElementById('detailModal');
+            
+            if (modalCloseBtn) {
+                modalCloseBtn.addEventListener('click', closeDetailModal);
+            }
+            
+            if (detailModal) {
+                detailModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'detailModal') {
+                        closeDetailModal();
+                    }
+                });
+            }
+
+            // Tab Buttons
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    btn.classList.add('active');
+                    const targetId = btn.getAttribute('data-tab');
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                    }
+                    
+                    if (targetId === 'notifications') {
+                        loadNotifications();
+                    } else if (targetId === 'outages') {
+                        loadOutages();
+                    }
+                });
+            });
+
+            // Notification Filter Buttons
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.getAttribute('data-filter');
+                    renderNotifications();
+                });
+            });
+
+            // Chart Settings Modal
+            const chartSettingsBtn = document.getElementById('chartSettingsBtn');
+            const chartSettingsModal = document.getElementById('chartSettingsModal');
+            const closeChartSettings = document.getElementById('closeChartSettings');
+            const selectAllIPs = document.getElementById('selectAllIPs');
+            const deselectAllIPs = document.getElementById('deselectAllIPs');
+            const saveChartSettings = document.getElementById('saveChartSettings');
+
+            if (chartSettingsBtn) {
+                chartSettingsBtn.addEventListener('click', () => {
+                    openChartSettings();
+                });
+            }
+
+            if (closeChartSettings) {
+                closeChartSettings.addEventListener('click', () => {
+                    chartSettingsModal.classList.remove('active');
+                });
+            }
+
+            if (chartSettingsModal) {
+                chartSettingsModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'chartSettingsModal') {
+                        chartSettingsModal.classList.remove('active');
+                    }
+                });
+            }
+
+            if (selectAllIPs) {
+                selectAllIPs.addEventListener('click', () => {
+                    selectAllIPsForChart();
+                });
+            }
+
+            if (deselectAllIPs) {
+                deselectAllIPs.addEventListener('click', () => {
+                    deselectAllIPsForChart();
+                });
+            }
+
+            if (saveChartSettings) {
+                saveChartSettings.addEventListener('click', () => {
+                    saveVisibleIPsState();
+                    chartSettingsModal.classList.remove('active');
+                });
+            }
+        }
+
+        // Load saved header state
+        function loadHeaderState() {
+            const collapsed = localStorage.getItem('headerCollapsed') === '1';
+            if (collapsed) {
+                const header = document.getElementById('mainHeader');
+                const icon = document.getElementById('toggleIcon');
+                const comparisonCard = document.getElementById('comparisonChartCard');
+                
+                if (header) header.classList.add('collapsed');
+                if (icon) icon.textContent = '▼';
+                if (comparisonCard) comparisonCard.style.display = 'none';
+            }
+        }
+
+        // Save visible IPs state
+        function saveVisibleIPsState() {
+            const visibleArray = Array.from(visibleIPs);
+            localStorage.setItem('visibleIPs', JSON.stringify(visibleArray));
+            console.log('필터 설정 저장:', visibleArray);
+        }
+
+        // Load visible IPs state
+        function loadVisibleIPsState() {
+            const saved = localStorage.getItem('visibleIPs');
+            if (saved) {
+                try {
+                    const visibleArray = JSON.parse(saved);
+                    visibleIPs = new Set(visibleArray);
+                    console.log('필터 설정 로드:', visibleArray);
+                    return true;
+                } catch (e) {
+                    console.error('필터 설정 로드 실패:', e);
+                }
+            }
+            return false;
+        }
+
+        // Save minimized state
+        function saveMinimizedState() {
+            const minimizedCards = document.querySelectorAll('.ip-card.minimized');
+            const minimizedIndices = Array.from(minimizedCards).map(card => card.dataset.index);
+            localStorage.setItem('minimizedCards', JSON.stringify(minimizedIndices));
+            console.log('최소화 상태 저장:', minimizedIndices);
+        }
+
+        // Load minimized state
+        function loadMinimizedState() {
+            const saved = localStorage.getItem('minimizedCards');
+            if (saved) {
+                try {
+                    const minimizedIndices = JSON.parse(saved);
+                    console.log('최소화 상태 로드:', minimizedIndices);
+                    
+                    setTimeout(() => {
+                        minimizedIndices.forEach(index => {
+                            const card = document.getElementById(`ip-card-${index}`);
+                            if (card && !card.classList.contains('minimized')) {
+                                toggleMinimize(parseInt(index));
+                            }
+                        });
+                    }, 100);
+                } catch (e) {
+                    console.error('최소화 상태 로드 실패:', e);
+                }
+            }
+        }
+
+        // Time Update Functions
+        function updateTime() {
+            const now = new Date();
+            
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('currentTime').textContent = `${hours}:${minutes}:${seconds}`;
+            
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            document.getElementById('currentDate').textContent = `${year}-${month}-${day}`;
+            
+            let elapsed;
+            if (!isRunning && pausedTime > 0) {
+                elapsed = Math.floor((pausedTime - startTime) / 1000);
+            } else {
+                elapsed = Math.floor((Date.now() - startTime) / 1000);
+            }
+            
+            const uptimeHours = Math.floor(elapsed / 3600);
+            const uptimeMinutes = Math.floor((elapsed % 3600) / 60);
+            const uptimeSeconds = elapsed % 60;
+            document.getElementById('uptime').textContent = 
+                `${String(uptimeHours).padStart(2, '0')}:${String(uptimeMinutes).padStart(2, '0')}:${String(uptimeSeconds).padStart(2, '0')}`;
+        }
+
+        // Initialize Charts
+        function initComparisonChart() {
+            const ctx = document.getElementById('comparisonChart');
+            comparisonChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { color: '#e4e6eb' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#3a3f5c' },
+                            ticks: { color: '#b0b3b8' }
+                        },
+                        x: {
+                            grid: { color: '#3a3f5c' },
+                            ticks: { color: '#b0b3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createIPChart(canvasId, index) {
+            const ctx = document.getElementById(canvasId);
+            const color = brightColors[index % brightColors.length];
+            
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(60).fill(''),
+                    datasets: [{
+                        label: 'Latency (ms)',
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color + '30',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#3a3f5c' },
+                            ticks: { color: '#b0b3b8' }
+                        },
+                        x: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load Data
+        async function loadData() {
+            try {
+                const response = await fetch('/data/ping_data.json?t=' + Date.now());
+                const data = await response.json();
+                currentData = data;
+                updateUI(data);
+            } catch (error) {
+                console.error('데이터 로드 실패:', error);
+            }
+        }
+
+        // Update UI
+        function updateUI(data) {
+            if (!data || !data.targets) return;
+
+            // 저장된 필터 상태 로드 또는 초기화
+            if (visibleIPs.size === 0) {
+                const loaded = loadVisibleIPsState();
+                if (!loaded) {
+                    data.targets.forEach((_, index) => visibleIPs.add(index));
+                }
+            }
+
+            // Update global stats
+            const onlineCount = data.targets.filter(t => t.online).length;
+            const offlineCount = data.targets.length - onlineCount;
+            const avgLatency = Math.round(
+                data.targets.reduce((sum, t) => sum + (t.online ? t.latency : 0), 0) / 
+                (onlineCount || 1)
+            );
+
+            document.getElementById('totalIPs').textContent = data.targets.length;
+            document.getElementById('onlineCount').textContent = onlineCount;
+            document.getElementById('offlineCount').textContent = offlineCount;
+            document.getElementById('avgLatency').textContent = avgLatency + ' ms';
+
+            // Update comparison chart
+            updateComparisonChart(data.targets);
+
+            // Update IP cards
+            updateIPCards(data.targets);
+            
+            // Load minimized state (only first time)
+            if (Object.keys(ipCharts).length === data.targets.length) {
+                loadMinimizedState();
+            }
+            
+            // Update modal if open
+            updateModalIfOpen();
+        }
+
+        // Update Comparison Chart
+        function updateComparisonChart(targets) {
+            const labels = Array(60).fill('').map((_, i) => (60 - i) + 's');
+            
+            comparisonChart.data.labels = labels;
+            
+            const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
+            
+            comparisonChart.data.datasets = filteredTargets.map((target) => {
+                const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
+                return {
+                    label: target.name,
+                    data: target.history,
+                    borderColor: brightColors[originalIndex % brightColors.length],
+                    backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
+                    tension: 0.4,
+                    borderWidth: 2,
+                    fill: false
+                };
+            });
+            
+            comparisonChart.update();
+        }
+
+        // Chart Settings Functions
+        function openChartSettings() {
+            if (!currentData || !currentData.targets) return;
+            
+            populateIPCheckboxList(currentData.targets);
+            document.getElementById('chartSettingsModal').classList.add('active');
+        }
+
+        function populateIPCheckboxList(targets) {
+            const listContainer = document.getElementById('ipCheckboxList');
+            listContainer.innerHTML = '';
+
+            targets.forEach((target, index) => {
+                const item = document.createElement('div');
+                item.className = 'ip-checkbox-item';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `ip-check-${index}`;
+                checkbox.checked = visibleIPs.has(index);
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        visibleIPs.add(index);
+                    } else {
+                        visibleIPs.delete(index);
+                    }
+                    updateComparisonChart(targets);
+                });
+
+                const label = document.createElement('label');
+                label.className = 'ip-checkbox-label';
+                label.htmlFor = `ip-check-${index}`;
+                
+                const colorBox = document.createElement('div');
+                colorBox.className = 'ip-checkbox-color';
+                colorBox.style.backgroundColor = brightColors[index % brightColors.length];
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'ip-checkbox-name';
+                nameSpan.textContent = target.name;
+                
+                const ipSpan = document.createElement('span');
+                ipSpan.className = 'ip-checkbox-ip';
+                ipSpan.textContent = target.ip;
+                
+                label.appendChild(colorBox);
+                label.appendChild(nameSpan);
+                label.appendChild(ipSpan);
+                
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                listContainer.appendChild(item);
+            });
+        }
+
+        function selectAllIPsForChart() {
+            if (!currentData || !currentData.targets) return;
+            
+            currentData.targets.forEach((_, index) => {
+                visibleIPs.add(index);
+                const checkbox = document.getElementById(`ip-check-${index}`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            updateComparisonChart(currentData.targets);
+        }
+
+        function deselectAllIPsForChart() {
+            if (!currentData || !currentData.targets) return;
+            
+            visibleIPs.clear();
+            currentData.targets.forEach((_, index) => {
+                const checkbox = document.getElementById(`ip-check-${index}`);
+                if (checkbox) checkbox.checked = false;
+            });
+            
+            updateComparisonChart(currentData.targets);
+        }
+
+        // Update IP Cards
+        function updateIPCards(targets) {
+            const container = document.getElementById('ipCardsContainer');
+            
+            targets.forEach((target, index) => {
+                let card = document.getElementById(`ip-card-${index}`);
+                
+                if (!card) {
+                    card = createIPCard(target, index);
+                    container.appendChild(card);
+                    ipCharts[index] = createIPChart(`chart-${index}`, index);
+                }
+                
+                updateIPCard(card, target, index);
+            });
+        }
+
+        // Create IP Card
+        function createIPCard(target, index) {
+            const card = document.createElement('div');
+            card.id = `ip-card-${index}`;
+            card.className = 'ip-card';
+            card.draggable = true;
+            card.dataset.index = index;
+            
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragover', handleDragOver);
+            card.addEventListener('drop', handleDrop);
+            card.addEventListener('dragend', handleDragEnd);
+            
+            card.innerHTML = `
+                <div class="ip-header">
+                    <div>
+                        <div class="ip-name">${target.name}</div>
+                        <div class="ip-address">${target.ip}</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="card-action-btn card-minimize-btn" onclick="toggleMinimize(${index})" title="최소화">−</button>
+                        <button class="card-action-btn card-restore-btn" onclick="toggleMinimize(${index})" title="복원">+</button>
+                        <button class="card-action-btn card-expand-btn" onclick="openDetailModal(${index})" title="상세보기">⊕</button>
+                    </div>
+                </div>
+                <span class="status-badge" id="status-${index}">오프라인</span>
+                <div class="chart-container">
+                    <canvas id="chart-${index}"></canvas>
+                </div>
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <div class="stat-item-label">지연시간</div>
+                        <div class="stat-item-value" id="latency-${index}">0 ms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-label">최소</div>
+                        <div class="stat-item-value" id="min-${index}">0 ms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-label">평균</div>
+                        <div class="stat-item-value" id="avg-${index}">0 ms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-label">최대</div>
+                        <div class="stat-item-value" id="max-${index}">0 ms</div>
+                    </div>
+                </div>
+                <div class="packet-bars" id="packets-${index}"></div>
+            `;
+            return card;
+        }
+
+        // Drag & Drop Handlers
+        function handleDragStart(e) {
+            draggedElement = this;
+            draggedIndex = parseInt(this.dataset.index);
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            if (draggedElement !== this) {
+                const container = document.getElementById('ipCardsContainer');
+                const allCards = [...container.children];
+                const draggedPos = allCards.indexOf(draggedElement);
+                const targetPos = allCards.indexOf(this);
+                
+                if (draggedPos < targetPos) {
+                    this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                } else {
+                    this.parentNode.insertBefore(draggedElement, this);
+                }
+            }
+            
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+            draggedElement = null;
+            draggedIndex = null;
+        }
+
+        // Sort Functions
+        function sortIPCards(sortBy) {
+            if (!currentData || !currentData.targets) return;
+            
+            const container = document.getElementById('ipCardsContainer');
+            const cards = [...container.children];
+            
+            const targets = currentData.targets.map((target, index) => ({
+                target,
+                index,
+                card: cards[index]
+            }));
+            
+            targets.sort((a, b) => {
+                switch(sortBy) {
+                    case 'name':
+                        return a.target.name.localeCompare(b.target.name);
+                    case 'latency':
+                        return b.target.latency - a.target.latency;
+                    case 'status':
+                        return b.target.online - a.target.online;
+                    default:
+                        return 0;
+                }
+            });
+            
+            container.innerHTML = '';
+            targets.forEach(item => {
+                container.appendChild(item.card);
+            });
+        }
+
+        // Toggle Minimize
+        function toggleMinimize(index) {
+            const card = document.getElementById(`ip-card-${index}`);
+            
+            if (!card) return;
+            
+            const isMinimized = card.classList.contains('minimized');
+            const ipCardsContainer = document.getElementById('ipCardsContainer');
+            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+            
+            if (isMinimized) {
+                card.classList.remove('minimized');
+                card.draggable = true;
+                ipCardsContainer.appendChild(card);
+            } else {
+                card.classList.add('minimized');
+                card.draggable = false;
+                minimizedCardsContainer.appendChild(card);
+            }
+            
+            updateMinimizedArea();
+            saveMinimizedState();
+        }
+
+        // Update Minimized Area
+        function updateMinimizedArea() {
+            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
+            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
+            const minimizedCount = document.getElementById('minimizedCount');
+            
+            const count = minimizedCardsContainer.children.length;
+            
+            if (count > 0) {
+                minimizedCardsArea.style.display = 'block';
+            } else {
+                minimizedCardsArea.style.display = 'none';
+            }
+            
+            minimizedCount.textContent = count;
+        }
+
+        // Open Detail Modal
+        function openDetailModal(index) {
+            if (!currentData || !currentData.targets[index]) return;
+            
+            const target = currentData.targets[index];
+            currentModalTarget = index;
+            
+            document.getElementById('modalTitle').textContent = target.name;
+            document.getElementById('modalSubtitle').textContent = target.ip;
+            
+            document.getElementById('modalLatency').textContent = target.latency + ' ms';
+            document.getElementById('modalMin').textContent = target.min + ' ms';
+            document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
+            document.getElementById('modalMax').textContent = target.max + ' ms';
+            
+            const lossRate = target.total > 0 ? ((target.failed / target.total) * 100).toFixed(1) : 0;
+            document.getElementById('modalLoss').textContent = lossRate + '%';
+            document.getElementById('modalStatus').textContent = target.online ? '온라인' : '오프라인';
+            document.getElementById('modalStatus').style.color = target.online ? 'var(--success)' : 'var(--error)';
+            
+            document.getElementById('modalTotal').textContent = target.total;
+            document.getElementById('modalSuccess').textContent = target.total - target.failed;
+            document.getElementById('modalFailed').textContent = target.failed;
+            
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
+            
+            createModalChart(target, index);
+            
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        // Close Detail Modal
+        function closeDetailModal() {
+            document.getElementById('detailModal').classList.remove('active');
+            if (modalChart) {
+                modalChart.destroy();
+                modalChart = null;
+            }
+            currentModalTarget = null;
+        }
+
+        // Create Modal Chart
+        function createModalChart(target, index) {
+            if (modalChart) {
+                modalChart.destroy();
+            }
+            
+            const ctx = document.getElementById('modalChart');
+            const color = brightColors[index % brightColors.length];
+            
+            const now = new Date();
+            const labels = Array(60).fill('').map((_, i) => {
+                const time = new Date(now.getTime() - (59 - i) * 1000);
+                return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`;
+            });
+            
+            modalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '지연시간 (ms)',
+                        data: target.history,
+                        borderColor: color,
+                        backgroundColor: color + '30',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 3,
+                        pointRadius: 1,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { 
+                                color: '#e4e6eb', 
+                                font: { size: 12 },
+                                padding: 10
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleFont: { size: 12 },
+                            bodyFont: { size: 11 },
+                            padding: 8
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#3a3f5c' },
+                            ticks: { 
+                                color: '#b0b3b8',
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            grid: { color: '#3a3f5c' },
+                            ticks: { 
+                                color: '#b0b3b8',
+                                font: { size: 9 },
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update Modal if Open
+        function updateModalIfOpen() {
+            if (currentModalTarget !== null && currentData && currentData.targets[currentModalTarget]) {
+                const target = currentData.targets[currentModalTarget];
+                
+                document.getElementById('modalLatency').textContent = target.latency + ' ms';
+                document.getElementById('modalMin').textContent = target.min + ' ms';
+                document.getElementById('modalAvg').textContent = Math.round(target.avg) + ' ms';
+                document.getElementById('modalMax').textContent = target.max + ' ms';
+                
+                const lossRate = target.total > 0 ? ((target.failed / target.total) * 100).toFixed(1) : 0;
+                document.getElementById('modalLoss').textContent = lossRate + '%';
+                document.getElementById('modalStatus').textContent = target.online ? '온라인' : '오프라인';
+                document.getElementById('modalStatus').style.color = target.online ? 'var(--success)' : 'var(--error)';
+                
+                document.getElementById('modalTotal').textContent = target.total;
+                document.getElementById('modalSuccess').textContent = target.total - target.failed;
+                document.getElementById('modalFailed').textContent = target.failed;
+                
+                if (modalChart) {
+                    const now = new Date();
+                    const labels = Array(60).fill('').map((_, i) => {
+                        const time = new Date(now.getTime() - (59 - i) * 1000);
+                        return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}:${String(time.getSeconds()).padStart(2, '0')}`;
+                    });
+                    
+                    modalChart.data.labels = labels;
+                    modalChart.data.datasets[0].data = target.history;
+                    modalChart.update();
+                }
+                
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                document.getElementById('modalLastResponse').textContent = target.online ? timeStr : '응답 없음';
+            }
+        }
+
+        // Update IP Card
+        function updateIPCard(card, target, index) {
+            const statusBadge = card.querySelector(`#status-${index}`);
+            if (statusBadge) {
+                statusBadge.textContent = target.online ? '온라인' : '오프라인';
+                statusBadge.className = target.online ? 'status-badge status-online' : 'status-badge status-offline';
+            }
+
+            const latencyEl = document.getElementById(`latency-${index}`);
+            if (latencyEl) latencyEl.textContent = target.latency + ' ms';
+            
+            const minEl = document.getElementById(`min-${index}`);
+            if (minEl) minEl.textContent = target.min + ' ms';
+            
+            const avgEl = document.getElementById(`avg-${index}`);
+            if (avgEl) avgEl.textContent = Math.round(target.avg) + ' ms';
+            
+            const maxEl = document.getElementById(`max-${index}`);
+            if (maxEl) maxEl.textContent = target.max + ' ms';
+
+            if (ipCharts[index] && !card.classList.contains('minimized')) {
+                ipCharts[index].data.datasets[0].data = target.history;
+                ipCharts[index].update();
+            }
+
+            const packetsContainer = document.getElementById(`packets-${index}`);
+            if (packetsContainer) {
+                packetsContainer.innerHTML = target.history.map(latency => {
+                    const className = latency > 0 ? 'packet-bar packet-success' : 'packet-bar packet-fail';
+                    return `<div class="${className}"></div>`;
+                }).join('');
+            }
+        }
+
+        // Load Notifications
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/data/notification_log.json?t=' + Date.now());
+                if (!response.ok) {
+                    showEmptyNotifications();
+                    return;
+                }
+                
+                const logs = await response.json();
+                allNotifications = logs.reverse();
+                
+                updateNotificationStats();
+                renderNotifications();
+            } catch (error) {
+                console.error('알림 로드 실패:', error);
+                showEmptyNotifications();
+            }
+        }
+
+        // Update Notification Stats
+        function updateNotificationStats() {
+            const total = allNotifications.length;
+            const timeouts = allNotifications.filter(n => n.type === 'timeout').length;
+            const recoveries = allNotifications.filter(n => n.type === 'recovery').length;
+
+            document.getElementById('notifTotalCount').textContent = total;
+            document.getElementById('notifTimeoutCount').textContent = timeouts;
+            document.getElementById('notifRecoveryCount').textContent = recoveries;
+        }
+
+        // Render Notifications
+        function renderNotifications() {
+            const container = document.getElementById('notificationList');
+            
+            const filtered = currentFilter === 'all' 
+                ? allNotifications 
+                : allNotifications.filter(n => n.type === currentFilter);
+
+            if (filtered.length === 0) {
+                showEmptyNotifications();
+                return;
+            }
+
+            container.innerHTML = filtered.map(notif => `
+                <div class="notification-item ${notif.type}">
+                    <div class="notification-header">
+                        <span class="notification-type ${notif.type}">
+                            ${notif.type === 'timeout' ? '⚠️ 타임아웃' : '✅ 복구'}
+                        </span>
+                        <span class="notification-time">${notif.date} ${notif.time}</span>
+                    </div>
+                    <div class="notification-name">${notif.name}</div>
+                    <div class="notification-ip">${notif.ip}</div>
+                </div>
+            `).join('');
+        }
+
+        // Show Empty Notifications
+        function showEmptyNotifications() {
+            const container = document.getElementById('notificationList');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <div>아직 알림 기록이 없습니다.</div>
+                </div>
+            `;
+        }
+
+        // Update Loop
+        function startUpdates() {
+            updateInterval = setInterval(() => {
+                loadData();
+            }, 1000);
+        }
+
+        function stopUpdates() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        }
+
+        // Outage Management Functions (v2.6)
+        async function loadOutages() {
+            try {
+                const response = await fetch('/data/outage_log.json?t=' + Date.now());
+                const data = await response.json();
+                allOutages = data.outages || [];
+                renderOutages();
+            } catch (error) {
+                console.error('장애 로그 로드 실패:', error);
+                document.getElementById('outageList').innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+            }
+        }
+
+        function renderOutages() {
+            const container = document.getElementById('outageList');
+            
+            let filtered = allOutages.filter(o => {
+                const statusMatch = currentOutageFilter.status === 'all' || o.status === currentOutageFilter.status;
+                const groupMatch = currentOutageFilter.group === 'all' || o.group === currentOutageFilter.group;
+                return statusMatch && groupMatch;
+            });
+
+            filtered.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(outage => {
+                let downtimeStr;
+                if (outage.status === 'ongoing') {
+                    const now = new Date();
+                    const start = new Date(outage.start_time);
+                    const seconds = Math.floor((now - start) / 1000);
+                    downtimeStr = formatDuration(seconds) + ' (진행 중)';
+                } else {
+                    downtimeStr = formatDuration(outage.downtime_seconds);
+                }
+
+                return `
+                    <div class="outage-card ${outage.status}">
+                        <div class="outage-header">
+                            <span class="outage-status-badge ${outage.status}">
+                                ${outage.status === 'ongoing' ? '🔴 진행중' : '🟢 복구됨'}
+                            </span>
+                            <span class="priority priority-${outage.priority}">P${outage.priority}</span>
+                        </div>
+                        <div class="outage-info">
+                            <h3>${outage.name}</h3>
+                            <p class="ip">${outage.ip}</p>
+                            <p class="group">그룹: ${outage.group}</p>
+                        </div>
+                        <div class="outage-timeline">
+                            <div class="timeline-item">
+                                <span class="label">시작:</span>
+                                <span class="time">${formatTime(outage.start_time)}</span>
+                            </div>
+                            ${outage.end_time ? `
+                            <div class="timeline-item">
+                                <span class="label">종료:</span>
+                                <span class="time">${formatTime(outage.end_time)}</span>
+                            </div>
+                            ` : ''}
+                            <div class="timeline-item">
+                                <span class="label">다운타임:</span>
+                                <span class="time">${downtimeStr}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '0초';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}시간 ${minutes}분`;
+            } else if (minutes > 0) {
+                return `${minutes}분 ${secs}초`;
+            } else {
+                return `${secs}초`;
+            }
+        }
+
+        function formatTime(timeStr) {
+            if (!timeStr) return 'N/A';
+            const date = new Date(timeStr);
+            return date.toLocaleString('ko-KR');
+        }
+
+        // ========================================================================
+        // Settings Tabs Event Listeners (v2.6)
+        // ========================================================================
+        
+        // Wait for DOM to load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing settings tabs...');
+            
+            const tabButtons = document.querySelectorAll('.settings-tab-btn');
+            console.log('Found tab buttons:', tabButtons.length);
+            
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const tabId = this.getAttribute('data-settings-tab');
+                    console.log('Tab clicked:', tabId);
+                    
+                    // Remove active class from all buttons
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    
+                    // Add active to clicked button
+                    this.classList.add('active');
+                    
+                    // Hide all tab contents
+                    document.querySelectorAll('.settings-tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Show target tab content
+                    const targetTab = document.getElementById('settings-' + tabId);
+                    if (targetTab) {
+                        targetTab.classList.add('active');
+                        console.log('Activated tab:', 'settings-' + tabId);
+                    } else {
+                        console.error('Tab not found:', 'settings-' + tabId);
+                    }
+                    
+                    // Load data for specific tabs
+                    if (tabId === 'thresholds') {
+                        // Show loading state initially
+                        const emptyState = document.getElementById('thresholdEmptyState');
+                        const contentDiv = document.getElementById('thresholdContent');
+                        if (emptyState) emptyState.style.display = 'block';
+                        if (contentDiv) contentDiv.style.display = 'none';
+                        
+                        loadThresholdSettings();
+                    } else if (tabId === 'ipgroups') {
+                        // Show loading state initially
+                        const emptyState = document.getElementById('ipgroupEmptyState');
+                        const contentDiv = document.getElementById('ipgroupContent');
+                        if (emptyState) emptyState.style.display = 'block';
+                        if (contentDiv) contentDiv.style.display = 'none';
+                        
+                        loadIPConfigTable();
+                    }
+                });
+            });
+        });
+        
+        // Load threshold settings
+        async function loadThresholdSettings() {
+            const emptyState = document.getElementById('thresholdEmptyState');
+            const contentDiv = document.getElementById('thresholdContent');
+            
+            try {
+                const response = await fetch('/config/ping_config.ini?t=' + Date.now());
+                const text = await response.text();
+                
+                // Parse [OutageDetection] section
+                const outageRegex = /\[OutageDetection\]([\s\S]*?)(?:\[|$)/;
+                const match = text.match(outageRegex);
+                
+                if (match) {
+                    const section = match[1];
+                    
+                    const parseValue = (key) => {
+                        const regex = new RegExp(key + '\s*=\s*(\d+)');
+                        const m = section.match(regex);
+                        return m ? parseInt(m[1]) : null;
+                    };
+                    
+                    // Set default threshold
+                    const defaultVal = parseValue('OutageThreshold');
+                    if (defaultVal) {
+                        const input = document.getElementById('defaultThreshold');
+                        if (input) input.value = defaultVal;
+                    }
+                    
+                    // Set group thresholds
+                    const groups = {
+                        '서버': 'ServerOutageThreshold',
+                        '네트워크': 'NetworkOutageThreshold',
+                        '방화벽': 'FirewallOutageThreshold',
+                        '데이터베이스': 'DatabaseOutageThreshold',
+                        '웹서버': 'WebServerOutageThreshold',
+                        '스토리지': 'StorageOutageThreshold',
+                        '기타': 'OtherOutageThreshold'
+                    };
+                    
+                    for (const [groupName, key] of Object.entries(groups)) {
+                        const value = parseValue(key);
+                        if (value) {
+                            const input = document.getElementById('thresh_' + groupName);
+                            if (input) input.value = value;
+                        }
+                    }
+                    
+                    console.log('Threshold settings loaded');
+                    
+                    // Show content, hide empty state
+                    if (emptyState) emptyState.style.display = 'none';
+                    if (contentDiv) contentDiv.style.display = 'block';
+                } else {
+                    // No config found - show empty state
+                    if (emptyState) emptyState.style.display = 'block';
+                    if (contentDiv) contentDiv.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load threshold settings:', error);
+                // Show empty state on error
+                if (emptyState) emptyState.style.display = 'block';
+                if (contentDiv) contentDiv.style.display = 'none';
+            }
+        }
+        
+        // Load IP configuration table
+        function loadIPConfigTable() {
+            const emptyState = document.getElementById('ipgroupEmptyState');
+            const contentDiv = document.getElementById('ipgroupContent');
+            const tbody = document.getElementById('ipConfigTableBody');
+            
+            if (!tbody) {
+                console.error('ipConfigTableBody not found');
+                return;
+            }
+            
+            if (!pingData || !pingData.targets || pingData.targets.length === 0) {
+                console.warn('No ping data available');
+                // Show empty state
+                if (emptyState) emptyState.style.display = 'block';
+                if (contentDiv) contentDiv.style.display = 'none';
+                return;
+            }
+            
+            // Hide empty state, show content
+            if (emptyState) emptyState.style.display = 'none';
+            if (contentDiv) contentDiv.style.display = 'block';
+            
+            tbody.innerHTML = pingData.targets.map(target => `
+                <tr>
+                    <td style="font-family: 'Courier New', monospace;">${target.ip}</td>
+                    <td>${target.name}</td>
+                    <td>
+                        <select data-ip="${target.ip}" class="ip-group-select">
+                            <option value="서버" ${(target.group === '서버' || target.group === 'Server') ? 'selected' : ''}>🖥️ 서버</option>
+                            <option value="네트워크" ${(target.group === '네트워크' || target.group === 'Network') ? 'selected' : ''}>🌐 네트워크</option>
+                            <option value="방화벽" ${(target.group === '방화벽' || target.group === 'Firewall') ? 'selected' : ''}>🛡️ 방화벽</option>
+                            <option value="데이터베이스" ${target.group === '데이터베이스' ? 'selected' : ''}>💾 데이터베이스</option>
+                            <option value="웹서버" ${target.group === '웹서버' ? 'selected' : ''}>🌍 웹서버</option>
+                            <option value="스토리지" ${target.group === '스토리지' ? 'selected' : ''}>📦 스토리지</option>
+                            <option value="기타" ${(target.group === '기타' || target.group === 'Other' || !target.group) ? 'selected' : ''}>🔧 기타</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" min="1" max="5" value="${target.priority || 5}" 
+                               data-ip="${target.ip}" class="ip-priority-input">
+                    </td>
+                </tr>
+            `).join('');
+            
+            console.log('IP config table loaded with', pingData.targets.length, 'entries');
+        }
+
+    </script>
+
+</body>
+</html>

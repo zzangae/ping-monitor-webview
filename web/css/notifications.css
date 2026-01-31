@@ -1,0 +1,71 @@
+/* notifications.css - 알림 관련 스타일 */
+
+/* Notification List */
+.notification-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.notification-item {
+    background: var(--bg-dark);
+    padding: 16px;
+    border-radius: 8px;
+    border-left: 4px solid;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+}
+
+.notification-item:hover {
+    background: var(--bg-hover);
+    transform: translateX(4px);
+}
+
+.notification-item.timeout {
+    border-left-color: var(--error);
+}
+
+.notification-item.recovery {
+    border-left-color: var(--success);
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.notification-type {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.notification-type.timeout {
+    background: rgba(255, 107, 107, 0.2);
+    color: var(--error);
+}
+
+.notification-type.recovery {
+    background: rgba(81, 207, 102, 0.2);
+    color: var(--success);
+}
+
+.notification-time {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.notification-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.notification-ip {
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
