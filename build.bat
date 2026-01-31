@@ -8,7 +8,7 @@ echo ========================================
 echo.
 echo 1. 컴파일 및 실행
 echo 2. 컴파일만
-echo 3. 디버그 모드
+echo 3. 디버그 모드 (콘솔 출력 + 로그 파일)
 echo 4. 종료
 echo.
 set /p choice="선택: "
@@ -94,7 +94,7 @@ gcc -o ping_monitor.exe ^
     browser_monitor.c ^
     config_api.c ^
     -municode -mwindows ^
-    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid
+    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
 
 if errorlevel 1 (
     echo [오류] 링킹 실패
@@ -143,7 +143,15 @@ cd main
 if exist ping_monitor.exe (
     del ping_monitor.exe
 )
+if exist ..\ping_monitor.exe (
+    del ..\ping_monitor.exe
+)
+if exist ..\ping_monitor_debug.log (
+    del ..\ping_monitor_debug.log
+)
 
+echo.
+echo [컴파일 중 - 콘솔 출력 활성화]
 gcc -g ^
     ping_monitor_webview.c ^
     module\config.c ^
@@ -155,8 +163,8 @@ gcc -g ^
     http_server.c ^
     browser_monitor.c ^
     config_api.c ^
-    -o ping_monitor.exe -municode -mwindows ^
-    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid
+    -o ping_monitor.exe -municode -mconsole ^
+    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
 
 if errorlevel 1 (
     echo [오류] 디버그 컴파일 실패
@@ -171,6 +179,20 @@ if exist ping_monitor.exe (
         echo [성공] 디버그 빌드 완료
         echo 위치: %cd%\ping_monitor.exe
         dir ping_monitor.exe | findstr "ping_monitor.exe"
+        echo.
+        echo [디버그 실행 중...]
+        echo 콘솔 출력과 함께 실행됩니다.
+        echo 로그는 ping_monitor_debug.log에 저장됩니다.
+        echo.
+        echo 종료하려면 트레이 아이콘 우클릭 후 종료 선택
+        echo 또는 이 콘솔 창을 닫으세요.
+        echo.
+        ping_monitor.exe > ping_monitor_debug.log 2>&1
+        echo.
+        echo [로그 파일 생성 완료]
+        if exist ping_monitor_debug.log (
+            dir ping_monitor_debug.log | findstr "ping_monitor_debug.log"
+        )
     ) else (
         echo [실패] exe 이동 실패
         goto error
