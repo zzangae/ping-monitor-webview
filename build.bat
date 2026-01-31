@@ -9,14 +9,16 @@ echo.
 echo 1. 컴파일 및 실행
 echo 2. 컴파일만
 echo 3. 디버그 모드 (콘솔 출력 + 로그 파일)
-echo 4. 종료
+echo 4. 배포 패키지 생성
+echo 5. 종료
 echo.
 set /p choice="선택: "
 
 if "%choice%"=="1" goto compile_run
 if "%choice%"=="2" goto compile_only
 if "%choice%"=="3" goto debug_mode
-if "%choice%"=="4" exit
+if "%choice%"=="4" goto deploy
+if "%choice%"=="5" exit
 goto end
 
 :compile_only
@@ -201,6 +203,70 @@ if exist ping_monitor.exe (
     echo [실패] exe 생성 안됨
     cd ..
     goto error
+)
+
+goto end
+
+:deploy
+echo.
+echo ========================================
+echo 배포 패키지 생성
+echo ========================================
+echo.
+
+REM 먼저 컴파일
+call :compile_only
+if not exist ping_monitor.exe (
+    echo [오류] 실행 파일이 없습니다. 컴파일을 먼저 완료하세요.
+    goto error
+)
+
+REM 배포 폴더 생성
+set "DEPLOY_DIR=PingMonitor_v2.6_Release"
+if exist "%DEPLOY_DIR%" (
+    echo [기존 배포 폴더 삭제]
+    rd /s /q "%DEPLOY_DIR%"
+)
+
+echo [배포 폴더 생성: %DEPLOY_DIR%]
+mkdir "%DEPLOY_DIR%"
+mkdir "%DEPLOY_DIR%\config"
+mkdir "%DEPLOY_DIR%\web"
+mkdir "%DEPLOY_DIR%\web\css"
+
+echo [파일 복사]
+echo  - ping_monitor.exe
+copy ping_monitor.exe "%DEPLOY_DIR%\" >nul
+
+echo  - 설정 파일
+if exist config\ping_config.ini (
+    copy config\ping_config.ini "%DEPLOY_DIR%\config\" >nul
+)
+
+if exist config\int_config.ini (
+    copy config\int_config.ini "%DEPLOY_DIR%\config\" >nul
+)
+
+echo  - 웹 파일
+copy web\graph.html "%DEPLOY_DIR%\web\" >nul
+copy web\*.js "%DEPLOY_DIR%\web\" >nul 2>nul
+xcopy /E /I /Y web\css "%DEPLOY_DIR%\web\css" >nul
+
+echo.
+echo [압축 파일 생성]
+powershell -Command "Compress-Archive -Path '%DEPLOY_DIR%' -DestinationPath '%DEPLOY_DIR%.zip' -Force"
+
+if exist "%DEPLOY_DIR%.zip" (
+    echo.
+    echo [성공] 배포 패키지 생성 완료
+    echo.
+    echo 파일 위치:
+    echo  - 폴더: %cd%\%DEPLOY_DIR%
+    echo  - 압축: %cd%\%DEPLOY_DIR%.zip
+    echo.
+    dir "%DEPLOY_DIR%.zip" | findstr ".zip"
+) else (
+    echo [실패] 압축 파일 생성 실패
 )
 
 goto end
