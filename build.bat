@@ -231,6 +231,7 @@ if exist "%DEPLOY_DIR%" (
 echo [배포 폴더 생성: %DEPLOY_DIR%]
 mkdir "%DEPLOY_DIR%"
 mkdir "%DEPLOY_DIR%\config"
+mkdir "%DEPLOY_DIR%\data"
 mkdir "%DEPLOY_DIR%\web"
 mkdir "%DEPLOY_DIR%\web\css"
 
@@ -247,9 +248,22 @@ if exist config\int_config.ini (
     copy config\int_config.ini "%DEPLOY_DIR%\config\" >nul
 )
 
+echo  - data 폴더 (빈 폴더)
+echo. > "%DEPLOY_DIR%\data\.gitkeep"
+
 echo  - 웹 파일
 copy web\graph.html "%DEPLOY_DIR%\web\" >nul
-copy web\*.js "%DEPLOY_DIR%\web\" >nul 2>nul
+
+echo  - Chart.js 라이브러리
+if exist web\chart.umd.min.js (
+    copy web\chart.umd.min.js "%DEPLOY_DIR%\web\" >nul
+    echo    chart.umd.min.js 복사 완료
+) else (
+    echo    [경고] web\chart.umd.min.js 파일이 없습니다!
+    echo    DOWNLOAD_CHARTJS.bat를 실행하여 다운로드하세요.
+)
+
+echo  - CSS 파일
 xcopy /E /I /Y web\css "%DEPLOY_DIR%\web\css" >nul
 
 echo.
