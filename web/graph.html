@@ -13,6 +13,47 @@
     <link rel="stylesheet" href="/web/css/settings.css">
     <link rel="stylesheet" href="/web/css/responsive.css">
     <script src="/web/chart.umd.min.js"></script>
+    <style>
+        /* 최소화 애니메이션 */
+        .collapsible-content {
+            max-height: 5000px;
+            overflow: hidden;
+            transition: max-height 0.4s ease-in-out, opacity 0.4s ease-in-out;
+            opacity: 1;
+        }
+        
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+        
+        /* 최소화 버튼 스타일 */
+        .minimize-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .minimize-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .minimize-btn svg {
+            transition: transform 0.3s ease;
+        }
+        
+        .minimize-btn.minimized svg {
+            transform: rotate(180deg);
+        }
+    </style>
 
 </head>
 <body>
@@ -20,9 +61,6 @@
     <div class="header" id="mainHeader">
         <h1>🌐 Ping Monitor v2.6 Dashboard</h1>
         <div class="header-subtitle">Real-time Network Monitoring with Outage Management</div>
-        <button class="header-toggle" id="headerToggle" title="헤더 최소화/확대">
-            <span id="toggleIcon">▲</span>
-        </button>
     </div>
 
     <!-- Tab Navigation -->
@@ -97,15 +135,24 @@
             <div class="card" id="comparisonChartCard">
                 <div class="card-header">
                     <div class="card-title">IP 비교 타임라인</div>
-                    <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="3"></circle>
-                            <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
-                        </svg>
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
+                            </svg>
+                        </button>
+                        <button class="minimize-btn" id="timelineMinimizeBtn" title="타임라인 최소화/확대">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="comparisonChart"></canvas>
+                <div class="collapsible-content" id="timelineContent">
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="comparisonChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -277,9 +324,18 @@
             <div id="minimizedCardsArea" class="minimized-cards-area" style="display: none;">
                 <div class="minimized-area-header">
                     <span class="minimized-area-title">📦 최소화된 IP</span>
-                    <span class="minimized-count" id="minimizedCount">0</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="minimized-count" id="minimizedCount">0</span>
+                        <button class="minimize-btn" id="minimizedAreaMinimizeBtn" title="최소화된 IP 영역 최소화/확대">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <div id="minimizedCardsContainer" class="minimized-cards-container"></div>
+                <div class="collapsible-content" id="minimizedAreaContent">
+                    <div id="minimizedCardsContainer" class="minimized-cards-container"></div>
+                </div>
             </div>
 
             <!-- IP Cards -->
@@ -442,9 +498,6 @@
             // Start time updates
             updateTime();
             timeInterval = setInterval(updateTime, 1000);
-            
-            // Load saved states
-            loadHeaderState();
         });
 
         // 브라우저 종료 감지
@@ -464,25 +517,42 @@
         });
 
         function initializeEventListeners() {
-            // Header Toggle
-            const headerToggle = document.getElementById('headerToggle');
-            if (headerToggle) {
-                headerToggle.addEventListener('click', () => {
-                    const header = document.getElementById('mainHeader');
-                    const icon = document.getElementById('toggleIcon');
-                    const comparisonCard = document.getElementById('comparisonChartCard');
-                    
-                    const isCollapsed = header.classList.toggle('collapsed');
-                    icon.textContent = isCollapsed ? '▼' : '▲';
-                    
-                    // IP 비교 타임라인도 숨김/표시
-                    if (comparisonCard) {
-                        comparisonCard.style.display = isCollapsed ? 'none' : 'block';
-                    }
+            // Timeline Minimize Button
+            const timelineMinimizeBtn = document.getElementById('timelineMinimizeBtn');
+            const timelineContent = document.getElementById('timelineContent');
+            if (timelineMinimizeBtn && timelineContent) {
+                timelineMinimizeBtn.addEventListener('click', () => {
+                    const isCollapsed = timelineContent.classList.toggle('collapsed');
+                    timelineMinimizeBtn.classList.toggle('minimized', isCollapsed);
                     
                     // 상태 저장
-                    localStorage.setItem('headerCollapsed', isCollapsed ? '1' : '0');
+                    localStorage.setItem('timelineCollapsed', isCollapsed ? '1' : '0');
                 });
+                
+                // 저장된 상태 복원
+                if (localStorage.getItem('timelineCollapsed') === '1') {
+                    timelineContent.classList.add('collapsed');
+                    timelineMinimizeBtn.classList.add('minimized');
+                }
+            }
+
+            // Minimized Area Minimize Button
+            const minimizedAreaMinimizeBtn = document.getElementById('minimizedAreaMinimizeBtn');
+            const minimizedAreaContent = document.getElementById('minimizedAreaContent');
+            if (minimizedAreaMinimizeBtn && minimizedAreaContent) {
+                minimizedAreaMinimizeBtn.addEventListener('click', () => {
+                    const isCollapsed = minimizedAreaContent.classList.toggle('collapsed');
+                    minimizedAreaMinimizeBtn.classList.toggle('minimized', isCollapsed);
+                    
+                    // 상태 저장
+                    localStorage.setItem('minimizedAreaCollapsed', isCollapsed ? '1' : '0');
+                });
+                
+                // 저장된 상태 복원
+                if (localStorage.getItem('minimizedAreaCollapsed') === '1') {
+                    minimizedAreaContent.classList.add('collapsed');
+                    minimizedAreaMinimizeBtn.classList.add('minimized');
+                }
             }
 
             // Control Buttons
@@ -672,18 +742,6 @@
         }
 
         // Load saved header state
-        function loadHeaderState() {
-            const collapsed = localStorage.getItem('headerCollapsed') === '1';
-            if (collapsed) {
-                const header = document.getElementById('mainHeader');
-                const icon = document.getElementById('toggleIcon');
-                const comparisonCard = document.getElementById('comparisonChartCard');
-                
-                if (header) header.classList.add('collapsed');
-                if (icon) icon.textContent = '▼';
-                if (comparisonCard) comparisonCard.style.display = 'none';
-            }
-        }
 
         // Save visible IPs state
         function saveVisibleIPsState() {
