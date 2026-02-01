@@ -1,3 +1,5 @@
+# 4. INSTALLATION.md
+
 [메인으로 돌아가기](../README.md)
 
 ## 문서
@@ -11,8 +13,6 @@
 - [버전 변경 이력](CHANGELOG.md)
 
 ---
-
-## 4. INSTALLATION.md
 
 **포함 내용:**
 
