@@ -14,171 +14,296 @@
 
 ---
 
-**ping_config.ini - 새 섹션 추가: v2.6**
+## 📋 포함 내용
 
-```ini
-[OutageDetection]
-OutageThreshold=300
-ServerOutageThreshold=180
-NetworkOutageThreshold=300
-FirewallOutageThreshold=120
-DatabaseOutageThreshold=180
-WebServerOutageThreshold=240
-StorageOutageThreshold=300
-OtherOutageThreshold=300
-
-[IPGroups]
-192.168.0.1=네트워크,1
-10.0.0.5=서버,1
-8.8.8.8=네트워크,2
-```
-
-**형식:**
-- `IPGroups`: `IP주소=그룹명,우선순위`
-- 우선순위: 1(최고) ~ 5(최저)
-
----
-
-**포함 내용:**
-
-- ping_config.ini 형식
+- ping_config.ini 형식 및 섹션
 - int_config.ini 형식
-- 설정 옵션 상세
+- 설정 옵션 상세 설명
 - 예제 설정
-- 보안 고려사항
+- 보안 가이드
 
-### ping_config.ini (필수)
+---
 
-공개 가능한 IP 주소들을 등록합니다.
+## 📄 ping_config.ini (필수)
 
-```ini
-[Settings]
-NotificationsEnabled=1          # 알림 활성화 (1=ON, 0=OFF)
-NotificationCooldown=60         # 알림 쿨다운 (초)
-NotifyOnTimeout=1               # 타임아웃 시 알림
-NotifyOnRecovery=1              # 복구 시 알림
-ConsecutiveFailures=3           # 연속 실패 임계값
-
-# 국내 DNS
-168.126.63.1,KT DNS
-164.124.101.2,SK DNS
-210.220.163.82,LG DNS
-
-# 해외 DNS
-8.8.8.8,Google DNS
-1.1.1.1,Cloudflare DNS
-```
-
-### ping_config.ini (공개 IP 설정)
+### 기본 구조
 
 ```ini
 [Settings]
-NotificationsEnabled=1           # 알림 활성화 (0=비활성화, 1=활성화)
-NotificationCooldown=60          # 알림 쿨다운 (초)
-NotifyOnTimeout=1                # 타임아웃 알림
-NotifyOnRecovery=1               # 복구 알림
-ConsecutiveFailures=3            # 연속 실패 임계값
+NotificationsEnabled=1
+NotificationCooldown=300
+NotifyOnTimeout=1
+NotifyOnRecovery=1
+ConsecutiveFailures=3
+OutageThreshold=300
 
-# IP 목록 (형식: IP, 이름)
-8.8.8.8, Google DNS
-1.1.1.1, Cloudflare DNS
-208.67.222.222, OpenDNS
-```
-
-### int_config.ini (선택, 비공개)
-
-** 중요: 이 파일은 Git에 커밋하지 마세요!**
-
-```ini
-# 형식: ip,name
-# 한 줄에 하나씩
-
-# Internal IP Configuration (Example)
-# Format: ip,name
-
-# Settings (optional - will use ping_config.ini settings)
-[Settings]
-# NotificationsEnabled=1
-# NotificationCooldown=60
-
-# 모니터링대상
-```
-
-#### int_config.ini 생성 방법
-
-```bash
-# Windows 명령 프롬프트
-copy int_config.ini.example int_config.ini
-
-# 편집기로 열어서 내부 IP 추가
-notepad int_config.ini
-```
-
-### 설정 파일 형식
-
-#### 공통 규칙
-
-```
-[Settings]         # 설정 섹션 (선택)
-key=value          # 설정 값
-ip,name            # IP 설정 (쉼표로 구분)
-# 주석             # 주석
-                   # 빈 줄 (무시됨)
-```
-
-### int_config.ini (내부 IP 설정)
-
-```ini
-# [Settings] 섹션 없이 IP만 나열
-192.168.0.1, 공유기
-10.20.33.116, 내부 방화벽#1
-10.20.33.117, 내부 방화벽#2
-```
-
-**주의사항:**
-
-- `ping_config.ini`: Git에 커밋 (공개 IP)
-- `int_config.ini`: Git에서 무시 (.gitignore) (보안 IP)
-- 최소 1개 이상의 IP가 설정되어야 프로그램 실행 가능
-- IP와 이름은 쉼표(,)로 구분
-
-### 로딩 순서
-
-```
-1. ping_config.ini 로드 (필수)
-   └─ [Settings] 섹션 적용
-   └─ IP 목록 추가
-
-2. int_config.ini 로드 (선택)
-   └─ [Settings] 무시 (ping_config.ini 우선)
-   └─ IP 목록 추가
-
-3. 결과: 두 파일의 IP가 합쳐짐
+[Targets]
+8.8.8.8,Google DNS,1,DNS
+1.1.1.1,Cloudflare DNS,1,DNS
+208.67.222.222,OpenDNS,2,DNS
 ```
 
 ---
 
-## 보안 가이드
+## ⚙️ [Settings] 섹션
 
-### 중요: int_config.ini 관리
+### NotificationsEnabled
+
+**설명:** 알림 활성화 여부
+
+| 값 | 설명 |
+|----|------|
+| 0  | 비활성화 (알림 표시 안 됨) |
+| 1  | 활성화 (커스텀 알림 창 표시) |
+
+**기본값:** `1`
+
+**예제:**
+```ini
+NotificationsEnabled=1  # 알림 on
+```
+
+### NotificationCooldown
+
+**설명:** 같은 IP에 대한 알림 쿨다운 (초)
+
+**범위:** 60 ~ 3600 (1분 ~ 1시간)
+
+**기본값:** `300` (5분)
+
+**예제:**
+```ini
+NotificationCooldown=300  # 5분 내 재알림 방지
+```
+
+**동작:**
+- Google DNS에서 타임아웃 알림 발생
+- 5분 이내에 다시 타임아웃 → 알림 표시 안 됨
+- 5분 후 타임아웃 → 알림 표시
+
+### NotifyOnTimeout
+
+**설명:** 타임아웃 시 알림 표시 여부
+
+| 값 | 설명 |
+|----|------|
+| 0  | 타임아웃 알림 off |
+| 1  | 타임아웃 알림 on |
+
+**기본값:** `1`
+
+**예제:**
+```ini
+NotifyOnTimeout=1  # 네트워크 타임아웃 시 알림
+```
+
+### NotifyOnRecovery
+
+**설명:** 복구 시 알림 표시 여부
+
+| 값 | 설명 |
+|----|------|
+| 0  | 복구 알림 off |
+| 1  | 복구 알림 on |
+
+**기본값:** `1`
+
+**예제:**
+```ini
+NotifyOnRecovery=1  # 네트워크 복구 시 알림
+```
+
+### ConsecutiveFailures
+
+**설명:** 알림 발생 연속 실패 임계값
+
+**범위:** 1 ~ 10
+
+**기본값:** `3`
+
+**예제:**
+```ini
+ConsecutiveFailures=3  # 연속 3회 실패 시 알림
+```
+
+**동작:**
+```
+실패 1회 → 알림 X
+실패 2회 → 알림 X
+실패 3회 → ⚠️ 알림 발생!
+```
+
+### OutageThreshold
+
+**설명:** 장애 판정 임계값 (분)
+
+**범위:** 1 ~ 60
+
+**기본값:** `5` (5분)
+
+**예제:**
+```ini
+OutageThreshold=5  # 5분 이상 다운 시 장애로 기록
+```
+
+**동작:**
+```
+오프라인 3분 → 장애 X
+오프라인 5분 → 🔥 장애 기록 (outage_log.json)
+```
+
+---
+
+## 🎯 [Targets] 섹션
+
+### 형식
+
+```
+IP주소,이름,우선순위,그룹
+```
+
+### 필드 설명
+
+| 필드       | 필수 | 설명                  | 예제           |
+| ---------- | ---- | --------------------- | -------------- |
+| IP주소     | ✅   | IPv4 주소             | 8.8.8.8        |
+| 이름       | ✅   | 표시 이름 (공백 가능) | Google DNS     |
+| 우선순위   | ⭕   | 1~5 (기본값: 2)       | 1              |
+| 그룹       | ⭕   | 그룹 이름             | DNS            |
+
+### 예제
+
+```ini
+[Targets]
+# 형식: IP,이름,우선순위,그룹
+
+# DNS 서버 (우선순위 높음)
+8.8.8.8,Google DNS,1,DNS
+1.1.1.1,Cloudflare DNS,1,DNS
+
+# 게이트웨이 (우선순위 높음)
+192.168.0.1,Gateway,1,Network
+
+# 내부 서버 (우선순위 보통)
+192.168.1.100,Web Server,2,Server
+192.168.1.101,Database Server,1,Database
+
+# 외부 서비스 (우선순위 낮음)
+example.com,Example Site,3,External
+```
+
+### 우선순위
+
+| 값 | 레벨 | 설명                    | 사용 예시                |
+| :---: | :---: | :---: | :---: |
+| 1  | 최고 | 매우 중요한 시스템      | 게이트웨이, 핵심 서버    |
+| 2  | 높음 | 중요한 서비스           | DNS, 일반 서버           |
+| 3  | 보통 | 일반 서비스             | 외부 사이트              |
+| 4  | 낮음 | 덜 중요한 서비스        | 테스트 서버              |
+| 5  | 최저 | 모니터링만 하는 서비스  | 백업 서버                |
+
+### 그룹
+
+| 그룹       | 설명                 | 임계값 설정 |
+| :---: | :---: | :---: |
+| DNS        | DNS 서버             | ✅          |
+| Network    | 네트워크 장비        | ✅          |
+| Server     | 일반 서버            | ✅          |
+| Database   | 데이터베이스 서버    | ✅          |
+| Web        | 웹 서버              | ✅          |
+| Storage    | 스토리지             | ✅          |
+| Other      | 기타                 | ✅          |
+
+---
+
+## 📄 int_config.ini (선택)
+
+### 용도
+
+- 내부 네트워크 IP 분리 관리
+- 보안상 공개 설정과 분리
+- Git에서 제외 (.gitignore)
+
+### 형식
+
+```ini
+# [Settings] 섹션 없음 (ping_config.ini 공유)
+
+# 형식: IP,이름,우선순위,그룹
+192.168.0.1,Router,1,Network
+192.168.1.10,NAS,2,Storage
+10.0.0.50,Database Server,1,Database
+```
+
+**주의:**
+- Settings 섹션 무시 (ping_config.ini 우선)
+- Targets 섹션만 사용
+- ping_config.ini와 병합됨
+
+### 예제
+
+```ini
+# Internal IP Configuration
+# Git에 커밋하지 마세요!
+
+# 네트워크 장비
+192.168.0.1,Gateway,1,Network
+192.168.0.2,Switch,2,Network
+192.168.0.3,Firewall,1,Firewall
+
+# 서버
+10.0.0.10,Web Server 1,1,Server
+10.0.0.11,Web Server 2,1,Server
+10.0.0.20,DB Master,1,Database
+10.0.0.21,DB Slave,2,Database
+
+# 스토리지
+10.0.1.100,NAS 1,2,Storage
+10.0.1.101,NAS 2,2,Storage
+```
+
+---
+
+## 🔧 고급 설정
+
+### 그룹별 임계값 (미래 기능)
+
+**v2.7 예정:**
+
+```ini
+[GroupThresholds]
+DNS=100,200          # 경고: 100ms, 위험: 200ms
+Server=150,300
+Network=100,250
+Database=200,400
+```
+
+### IP 그룹 매핑 (미래 기능)
+
+**v2.7 예정:**
+
+```ini
+[IPGroups]
+8.8.8.8=DNS,1
+192.168.0.1=Network,1
+10.0.0.10=Server,2
+```
+
+---
+
+## 🔐 보안 가이드
+
+### int_config.ini 관리
 
 #### .gitignore 설정
 
-```.gitignore
+```gitignore
 # Internal configuration file (contains private IP addresses)
 int_config.ini
 
-# Build artifacts
-*.exe
-*.obj
-*.o
-
-# Data files
-ping_data.json
-notification_log.json
-
-# Logs
-*.log
+# Backup files
+*.bak
+*_backup.*
 ```
 
 #### Git 사용 시 체크리스트
@@ -186,11 +311,7 @@ notification_log.json
 ```bash
 # ✅ 커밋해야 할 파일
 git add ping_config.ini          # 공개 IP
-git add int_config.ini.example   # 내부 IP 예시
 git add .gitignore
-git add *.c *.h *.bat
-git add graph.html
-git add css/
 
 # ⛔ 절대 커밋하지 말 것!
 # git add int_config.ini  ← 실제 내부 IP 파일
@@ -222,3 +343,173 @@ git add .gitignore
 git commit -m "Remove int_config.ini from repository"
 git push
 ```
+
+### 백업
+
+```cmd
+# 설정 파일 백업
+copy config\ping_config.ini config\ping_config.ini.bak
+copy config\int_config.ini config\int_config.ini.bak
+
+# 타임스탬프 백업
+for /f "tokens=2-4 delims=/ " %%a in ('date /t') do (set DATE=%%a%%b%%c)
+copy config\ping_config.ini config\ping_config.ini.%DATE%
+```
+
+---
+
+## 📝 설정 예제
+
+### 예제 1: 기본 설정
+
+```ini
+[Settings]
+NotificationsEnabled=1
+NotificationCooldown=300
+NotifyOnTimeout=1
+NotifyOnRecovery=1
+ConsecutiveFailures=3
+OutageThreshold=5
+
+[Targets]
+8.8.8.8,Google DNS,1,DNS
+1.1.1.1,Cloudflare DNS,1,DNS
+```
+
+### 예제 2: 엔터프라이즈 설정
+
+```ini
+[Settings]
+NotificationsEnabled=1
+NotificationCooldown=600        # 10분 쿨다운
+NotifyOnTimeout=1
+NotifyOnRecovery=0              # 복구 알림 off
+ConsecutiveFailures=5           # 연속 5회 실패
+OutageThreshold=10              # 10분 장애 임계값
+
+[Targets]
+# 핵심 인프라 (P1)
+192.168.0.1,Core Router,1,Network
+192.168.0.2,Core Switch,1,Network
+
+# 주요 서버 (P1)
+10.0.0.10,Primary DB,1,Database
+10.0.0.20,Web Server 1,1,Server
+
+# 보조 서버 (P2)
+10.0.0.11,Secondary DB,2,Database
+10.0.0.21,Web Server 2,2,Server
+
+# 모니터링용 (P3)
+8.8.8.8,Google DNS,3,External
+```
+
+### 예제 3: 홈랩 설정
+
+```ini
+[Settings]
+NotificationsEnabled=1
+NotificationCooldown=60          # 1분 쿨다운 (테스트용)
+NotifyOnTimeout=1
+NotifyOnRecovery=1
+ConsecutiveFailures=2            # 연속 2회 실패
+OutageThreshold=3                # 3분 장애 임계값
+
+[Targets]
+# 공유기
+192.168.0.1,Router,1,Network
+
+# 홈서버
+192.168.0.100,Home Server,1,Server
+192.168.0.101,Plex Media Server,2,Server
+192.168.0.102,NAS,2,Storage
+
+# 외부
+8.8.8.8,Google DNS,3,External
+```
+
+---
+
+## 🔄 설정 적용
+
+### 실시간 적용
+
+```
+1. ping_config.ini 또는 int_config.ini 편집
+2. 저장
+3. 트레이 아이콘 우클릭 → "설정 다시 불러오기"
+4. 브라우저 새로고침 (F5)
+```
+
+**재시작 불필요!**
+
+### 로딩 순서
+
+```
+1. ping_config.ini 로드 (필수)
+   └─ [Settings] 섹션 적용
+   └─ [Targets] 섹션 IP 추가
+
+2. int_config.ini 로드 (선택)
+   └─ [Settings] 무시
+   └─ [Targets] 섹션 IP 추가
+
+3. 결과: 두 파일의 IP가 합쳐짐
+```
+
+### 로딩 메시지 (디버그 모드)
+
+```
+==========================================
+설정 파일 로딩 시작
+==========================================
+설정 파일 읽는 중: config/ping_config.ini
+  ping_config.ini에서 타겟 로드 완료
+------------------------------------------
+설정 파일 읽는 중: config/int_config.ini
+  int_config.ini에서 타겟 로드 완료
+==========================================
+설정 로드 완료: 총 10개 타겟
+알림 설정: 활성화 (쿨다운: 300초, 연속실패: 3회)
+==========================================
+```
+
+---
+
+## ⚠️ 주의사항
+
+### 필수 조건
+
+- **최소 1개 IP 필요**
+  - ping_config.ini 또는 int_config.ini에 최소 1개 IP 등록
+  - IP 없으면 프로그램 시작 불가
+
+### 형식 규칙
+
+- **IP 주소**: IPv4 형식 (점으로 구분된 4개 숫자)
+- **이름**: 공백 가능, 특수 문자 주의
+- **쉼표**: 필드 구분자로 사용
+
+### 오류 처리
+
+**잘못된 형식:**
+```ini
+# ❌ 쉼표 누락
+8.8.8.8 Google DNS
+
+# ❌ IP 형식 오류
+8.8.8,Google DNS
+
+# ✅ 올바른 형식
+8.8.8.8,Google DNS
+```
+
+**로딩 실패 시:**
+- 오류 메시지 표시
+- 기본 설정으로 실행
+- 로그 파일 확인 (`ping_monitor_debug.log`)
+
+---
+
+**작성일:** 2025-02-01  
+**버전:** Ping Monitor v2.6
