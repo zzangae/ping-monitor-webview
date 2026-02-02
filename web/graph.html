@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ping Monitor v2.6 Dashboard</title>
+    <title>Ping Monitor v2.7 Dashboard</title>
     <link rel="stylesheet" href="/web/css/variables.css">
     <link rel="stylesheet" href="/web/css/base.css">
     <link rel="stylesheet" href="/web/css/components.css">
@@ -53,13 +53,42 @@
         .minimize-btn.minimized svg {
             transform: rotate(180deg);
         }
+        
+        /* 타임라인 시간 범위 선택 스타일 (v2.7) */
+        .timeline-range-select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            outline: none;
+            min-width: 100px;
+        }
+        
+        .timeline-range-select:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .timeline-range-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+        }
+        
+        .timeline-range-select option {
+            background: #1e2139;
+            color: #fff;
+            padding: 8px;
+        }
     </style>
 
 </head>
 <body>
     <!-- Header -->
     <div class="header" id="mainHeader">
-        <h1>🌐 Ping Monitor v2.6 Dashboard</h1>
+        <h1>🌐 Ping Monitor v2.7 Dashboard</h1>
         <div class="header-subtitle">Real-time Network Monitoring with Outage Management</div>
     </div>
 
@@ -135,7 +164,19 @@
             <div class="card" id="comparisonChartCard">
                 <div class="card-header">
                     <div class="card-title">IP 비교 타임라인</div>
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <!-- 시간 범위 선택 (v2.7) -->
+                        <select class="timeline-range-select" id="timelineRangeSelect" title="시간 범위 선택">
+                            <option value="60">1분</option>
+                            <option value="300">5분</option>
+                            <option value="600">10분</option>
+                            <option value="1800">30분</option>
+                            <option value="3600">1시간</option>
+                            <option value="10800">3시간</option>
+                            <option value="18000">5시간</option>
+                            <option value="43200">12시간</option>
+                            <option value="86400">24시간</option>
+                        </select>
                         <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="3"></circle>
@@ -467,6 +508,11 @@
         // Chart Visibility
         let visibleIPs = new Set();
         
+        // Extended History for Timeline (v2.7)
+        let extendedHistory = {};  // IP별 확장 히스토리 저장 {ip: [latency, ...]}
+        let selectedTimeRange = 60;  // 기본 1분 (60초)
+        const MAX_HISTORY_POINTS = 86400;  // 최대 24시간 (초 단위)
+        
         // Notification State
         let allNotifications = [];
         let currentFilter = 'all';
@@ -517,6 +563,28 @@
         });
 
         function initializeEventListeners() {
+            // Timeline Range Select (v2.7)
+            const timelineRangeSelect = document.getElementById('timelineRangeSelect');
+            if (timelineRangeSelect) {
+                // 저장된 시간 범위 복원
+                const savedRange = localStorage.getItem('timelineRange');
+                if (savedRange) {
+                    selectedTimeRange = parseInt(savedRange);
+                    timelineRangeSelect.value = savedRange;
+                }
+                
+                timelineRangeSelect.addEventListener('change', (e) => {
+                    selectedTimeRange = parseInt(e.target.value);
+                    localStorage.setItem('timelineRange', selectedTimeRange.toString());
+                    console.log('타임라인 범위 변경:', selectedTimeRange, '초');
+                    
+                    // 차트 즉시 업데이트
+                    if (currentData && currentData.targets) {
+                        updateComparisonChart(currentData.targets);
+                    }
+                });
+            }
+
             // Timeline Minimize Button
             const timelineMinimizeBtn = document.getElementById('timelineMinimizeBtn');
             const timelineContent = document.getElementById('timelineContent');
@@ -592,6 +660,9 @@
                         pausedTime = 0;
                         pausedElapsed = 0;
                         updateTime();
+                        
+                        // 확장 히스토리 초기화 (v2.7)
+                        extendedHistory = {};
                         
                         if (comparisonChart) {
                             comparisonChart.data.labels = [];
@@ -950,28 +1021,129 @@
             updateModalIfOpen();
         }
 
-        // Update Comparison Chart
+        // Update Comparison Chart (v2.7 - Extended Timeline Support)
         function updateComparisonChart(targets) {
-            const labels = Array(60).fill('').map((_, i) => (60 - i) + 's');
+            // 확장 히스토리 업데이트
+            targets.forEach(target => {
+                const key = target.ip;
+                if (!extendedHistory[key]) {
+                    extendedHistory[key] = [];
+                }
+                
+                // 최신 latency 값 추가 (초당 1개)
+                const currentLatency = target.online ? target.latency : 0;
+                extendedHistory[key].push(currentLatency);
+                
+                // 최대 포인트 수 제한
+                if (extendedHistory[key].length > MAX_HISTORY_POINTS) {
+                    extendedHistory[key].shift();
+                }
+            });
             
+            // 시간 범위에 따른 레이블 생성
+            const labels = generateTimeLabels(selectedTimeRange);
             comparisonChart.data.labels = labels;
             
             const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
             
             comparisonChart.data.datasets = filteredTargets.map((target) => {
                 const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
+                const key = target.ip;
+                
+                // 확장 히스토리에서 필요한 범위만 가져오기
+                const history = extendedHistory[key] || [];
+                const displayData = getDisplayData(history, selectedTimeRange);
+                
                 return {
                     label: target.name,
-                    data: target.history,
+                    data: displayData,
                     borderColor: brightColors[originalIndex % brightColors.length],
                     backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
                     tension: 0.4,
                     borderWidth: 2,
-                    fill: false
+                    fill: false,
+                    pointRadius: selectedTimeRange <= 300 ? 2 : 0,  // 5분 이하면 점 표시
+                    pointHoverRadius: 4
                 };
             });
             
             comparisonChart.update();
+        }
+        
+        // 시간 범위에 따른 레이블 생성 (v2.7)
+        function generateTimeLabels(timeRangeSeconds) {
+            const totalPoints = Math.min(60, timeRangeSeconds);  // 최대 60개 포인트
+            const interval = timeRangeSeconds / totalPoints;
+            const labels = [];
+            
+            for (let i = totalPoints; i >= 1; i--) {
+                const secondsAgo = Math.round(i * interval);
+                
+                if (timeRangeSeconds <= 60) {
+                    // 1분: 초 단위
+                    labels.push(secondsAgo + '초');
+                } else if (timeRangeSeconds <= 3600) {
+                    // 1시간 이하: 분:초
+                    const mins = Math.floor(secondsAgo / 60);
+                    const secs = secondsAgo % 60;
+                    if (secs === 0) {
+                        labels.push(mins + '분');
+                    } else {
+                        labels.push(mins + ':' + String(secs).padStart(2, '0'));
+                    }
+                } else {
+                    // 1시간 초과: 시:분
+                    const hours = Math.floor(secondsAgo / 3600);
+                    const mins = Math.floor((secondsAgo % 3600) / 60);
+                    if (hours > 0) {
+                        labels.push(hours + '시간 ' + mins + '분');
+                    } else {
+                        labels.push(mins + '분');
+                    }
+                }
+            }
+            
+            return labels;
+        }
+        
+        // 확장 히스토리에서 표시할 데이터 추출 (v2.7)
+        function getDisplayData(history, timeRangeSeconds) {
+            const totalPoints = Math.min(60, timeRangeSeconds);  // 최대 60개 포인트
+            const interval = Math.floor(timeRangeSeconds / totalPoints);
+            
+            // 필요한 데이터 포인트 수
+            const neededPoints = timeRangeSeconds;
+            
+            // 히스토리가 충분하지 않으면 있는 만큼만 사용
+            const availableHistory = history.slice(-neededPoints);
+            
+            if (availableHistory.length === 0) {
+                return Array(totalPoints).fill(null);
+            }
+            
+            // 샘플링하여 60개 이하의 포인트로 줄이기
+            const result = [];
+            for (let i = 0; i < totalPoints; i++) {
+                const startIdx = Math.floor(i * interval);
+                const endIdx = Math.min(startIdx + interval, availableHistory.length);
+                
+                if (startIdx < availableHistory.length) {
+                    // 해당 구간의 평균값 계산
+                    const slice = availableHistory.slice(startIdx, endIdx);
+                    const validValues = slice.filter(v => v !== null && v !== undefined && v > 0);
+                    
+                    if (validValues.length > 0) {
+                        const avg = validValues.reduce((a, b) => a + b, 0) / validValues.length;
+                        result.push(Math.round(avg));
+                    } else {
+                        result.push(null);
+                    }
+                } else {
+                    result.push(null);
+                }
+            }
+            
+            return result;
         }
 
         // Chart Settings Functions
@@ -1744,7 +1916,7 @@
                 return;
             }
             
-            if (!pingData || !pingData.targets || pingData.targets.length === 0) {
+            if (!currentData || !currentData.targets || currentData.targets.length === 0) {
                 console.warn('No ping data available');
                 // Show empty state
                 if (emptyState) emptyState.style.display = 'block';
@@ -1756,7 +1928,7 @@
             if (emptyState) emptyState.style.display = 'none';
             if (contentDiv) contentDiv.style.display = 'block';
             
-            tbody.innerHTML = pingData.targets.map(target => `
+            tbody.innerHTML = currentData.targets.map(target => `
                 <tr>
                     <td style="font-family: 'Courier New', monospace;">${target.ip}</td>
                     <td>${target.name}</td>
@@ -1778,7 +1950,7 @@
                 </tr>
             `).join('');
             
-            console.log('IP config table loaded with', pingData.targets.length, 'entries');
+            console.log('IP config table loaded with', currentData.targets.length, 'entries');
         }
 
     </script>
