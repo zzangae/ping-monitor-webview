@@ -1,89 +1,130 @@
 @echo off
-chcp 65001 > nul
-cd /d "%~dp0"
+chcp 65001 >nul
+setlocal enabledelayedexpansion
 
-echo ========================================
-echo Ping Monitor v2.6 빌드 시스템
-echo ========================================
+echo ============================================
+echo   Ping 응답 확인 시각화 도구 v2.7 빌드
+echo ============================================
 echo.
-echo 1. 컴파일 및 실행
-echo 2. 컴파일만
-echo 3. 디버그 모드 (콘솔 출력 + 로그 파일)
-echo 4. 배포 패키지 생성
-echo 5. 종료
+
+:menu
+echo 메뉴를 선택하세요:
+echo   1. 컴파일 및 실행
+echo   2. 컴파일만
+echo   3. 디버그 모드 (콘솔 출력 + 로그 파일)
+echo   4. 배포 패키지 생성
+echo   5. 종료
 echo.
-set /p choice="선택: "
+set /p choice="선택 (1-5): "
 
 if "%choice%"=="1" goto compile_run
 if "%choice%"=="2" goto compile_only
 if "%choice%"=="3" goto debug_mode
-if "%choice%"=="4" goto deploy
-if "%choice%"=="5" exit
-goto end
+if "%choice%"=="4" goto create_release
+if "%choice%"=="5" goto end
+echo 잘못된 선택입니다.
+goto menu
+
+:compile_run
+call :do_compile
+if %errorlevel% neq 0 goto menu
+echo.
+echo 프로그램을 실행합니다...
+start "" ping_monitor.exe
+goto menu
 
 :compile_only
-echo.
-echo [현재 디렉토리: %cd%]
-echo.
+call :do_compile
+goto menu
 
-echo [기존 exe 삭제]
-if exist ping_monitor.exe (
-    del ping_monitor.exe
-    echo 기존 exe 삭제 완료
-)
-if exist main\ping_monitor.exe (
-    del main\ping_monitor.exe
-    echo main 폴더의 기존 exe 삭제 완료
-)
+:debug_mode
 echo.
+echo 디버그 모드로 컴파일 중...
+cd main
+gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -DDEBUG
+gcc -c module\config.c -o module_config.o -DDEBUG
+gcc -c module\network.c -o module_network.o -DDEBUG
+gcc -c module\notification.c -o module_notification.o -DDEBUG
+gcc -c module\port.c -o module_port.o -DDEBUG
+gcc -c outage.c -o outage.o -DDEBUG
 
-echo [컴파일 시작]
+gcc -o ping_monitor.exe ^
+    ping_monitor_webview.o ^
+    module_config.o ^
+    module_network.o ^
+    module_notification.o ^
+    module_port.o ^
+    outage.o ^
+    module\tray.c ^
+    http_server.c ^
+    browser_monitor.c ^
+    config_api.c ^
+    -municode ^
+    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
+
+if %errorlevel% neq 0 (
+    echo 컴파일 실패!
+    cd ..
+    goto menu
+)
+
+move ping_monitor.exe .. >nul
+del *.o >nul 2>&1
+cd ..
+
+echo 디버그 모드 컴파일 완료!
+echo 콘솔 창이 표시되며 로그가 출력됩니다.
+start "" ping_monitor.exe
+goto menu
+
+:do_compile
+echo.
+echo 컴파일 중...
 cd main
 
-echo [1/6] ping_monitor_webview.c
 gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -mwindows
-if errorlevel 1 (
-    echo [오류] ping_monitor_webview.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo ping_monitor_webview.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo [2/6] module\config.c
 gcc -c module\config.c -o module_config.o
-if errorlevel 1 (
-    echo [오류] module\config.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo config.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo [3/6] module\network.c
 gcc -c module\network.c -o module_network.o
-if errorlevel 1 (
-    echo [오류] module\network.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo network.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo [4/6] module\notification.c
 gcc -c module\notification.c -o module_notification.o
-if errorlevel 1 (
-    echo [오류] module\notification.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo notification.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo [5/6] module\port.c
 gcc -c module\port.c -o module_port.o
-if errorlevel 1 (
-    echo [오류] module\port.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo port.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo [6/6] outage.c
 gcc -c outage.c -o outage.o
-if errorlevel 1 (
-    echo [오류] outage.c 컴파일 실패
-    goto error
+if %errorlevel% neq 0 (
+    echo outage.c 컴파일 실패!
+    cd ..
+    exit /b 1
 )
 
-echo.
-echo [링킹 시작]
+echo 링킹 중...
 gcc -o ping_monitor.exe ^
     ping_monitor_webview.o ^
     module_config.o ^
@@ -98,199 +139,111 @@ gcc -o ping_monitor.exe ^
     -municode -mwindows ^
     -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
 
-if errorlevel 1 (
-    echo [오류] 링킹 실패
+if %errorlevel% neq 0 (
+    echo 링킹 실패!
     cd ..
-    goto error
+    exit /b 1
 )
 
-echo [청소]
-del *.o 2>nul
+move ping_monitor.exe .. >nul
+del *.o >nul 2>&1
+cd ..
 
 echo.
-echo [exe를 프로젝트 루트로 이동]
+echo ============================================
+echo   컴파일 성공!
+echo ============================================
+exit /b 0
+
+:create_release
+echo.
+echo ============================================
+echo   배포 패키지 생성 v2.7
+echo ============================================
+echo.
+
+set RELEASE_DIR=PingMonitor_v2.7_Release
+
+:: 기존 폴더 및 압축 파일 삭제
+if exist %RELEASE_DIR% (
+    echo 기존 배포 폴더 삭제 중...
+    rmdir /s /q %RELEASE_DIR%
+)
+if exist %RELEASE_DIR%.zip (
+    echo 기존 압축 파일 삭제 중...
+    del /f /q %RELEASE_DIR%.zip
+)
+
+:: 폴더 구조 생성
+echo 폴더 구조 생성 중...
+mkdir %RELEASE_DIR%
+mkdir %RELEASE_DIR%\config
+mkdir %RELEASE_DIR%\data
+mkdir %RELEASE_DIR%\web
+mkdir %RELEASE_DIR%\web\css
+mkdir %RELEASE_DIR%\web\config
+mkdir %RELEASE_DIR%\web\section-ip
+
+:: 실행 파일 복사
+echo 실행 파일 복사 중...
 if exist ping_monitor.exe (
-    move ping_monitor.exe ..
-    cd ..
-    if exist ping_monitor.exe (
-        echo [성공] ping_monitor.exe 생성 완료
-        echo 위치: %cd%\ping_monitor.exe
-        dir ping_monitor.exe | findstr "ping_monitor.exe"
-    ) else (
-        echo [실패] exe 이동 실패
-        goto error
-    )
+    copy ping_monitor.exe %RELEASE_DIR%\ >nul
 ) else (
-    echo [실패] exe 생성 안됨
-    cd ..
-    goto error
+    echo [경고] ping_monitor.exe가 없습니다. 먼저 컴파일하세요.
 )
 
-goto end
+:: 설정 파일 복사
+echo 설정 파일 복사 중...
+if exist config\ping_config.ini copy config\ping_config.ini %RELEASE_DIR%\config\ >nul
+if exist config\int_config.ini copy config\int_config.ini %RELEASE_DIR%\config\ >nul
 
-:compile_run
-call :compile_only
-if exist ping_monitor.exe (
-    echo.
-    echo [실행]
-    start ping_monitor.exe
-)
-goto end
+:: data 폴더에 .gitkeep 생성
+echo. > %RELEASE_DIR%\data\.gitkeep
 
-:debug_mode
+:: 웹 파일 복사
+echo 웹 파일 복사 중...
+if exist web\graph.html copy web\graph.html %RELEASE_DIR%\web\ >nul
+if exist web\chart.umd.min.js copy web\chart.umd.min.js %RELEASE_DIR%\web\ >nul
+
+:: CSS 파일 복사
+echo CSS 파일 복사 중...
+if exist web\css\variables.css copy web\css\variables.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\base.css copy web\css\base.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\components.css copy web\css\components.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\dashboard.css copy web\css\dashboard.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\notifications.css copy web\css\notifications.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\outages.css copy web\css\outages.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\settings.css copy web\css\settings.css %RELEASE_DIR%\web\css\ >nul
+if exist web\css\responsive.css copy web\css\responsive.css %RELEASE_DIR%\web\css\ >nul
+
+:: web/config 파일 복사 (v2.7 신규)
+echo web/config 파일 복사 중...
+if exist web\config\settings.css copy web\config\settings.css %RELEASE_DIR%\web\config\ >nul
+if exist web\config\settings.js copy web\config\settings.js %RELEASE_DIR%\web\config\ >nul
+
+:: web/section-ip 파일 복사 (v2.7 신규)
+echo web/section-ip 파일 복사 중...
+if exist web\section-ip\timeline.css copy web\section-ip\timeline.css %RELEASE_DIR%\web\section-ip\ >nul
+if exist web\section-ip\timeline.js copy web\section-ip\timeline.js %RELEASE_DIR%\web\section-ip\ >nul
+if exist web\section-ip\timeline.html copy web\section-ip\timeline.html %RELEASE_DIR%\web\section-ip\ >nul
+
+:: 압축 파일 생성 (PowerShell 사용)
 echo.
-echo [디버그 모드 컴파일]
-cd main
-
-if exist ping_monitor.exe (
-    del ping_monitor.exe
-)
-if exist ..\ping_monitor.exe (
-    del ..\ping_monitor.exe
-)
-if exist ..\ping_monitor_debug.log (
-    del ..\ping_monitor_debug.log
-)
-
-echo.
-echo [컴파일 중 - 콘솔 출력 활성화]
-gcc -g ^
-    ping_monitor_webview.c ^
-    module\config.c ^
-    module\network.c ^
-    module\notification.c ^
-    module\port.c ^
-    module\tray.c ^
-    outage.c ^
-    http_server.c ^
-    browser_monitor.c ^
-    config_api.c ^
-    -o ping_monitor.exe -municode -mconsole ^
-    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
-
-if errorlevel 1 (
-    echo [오류] 디버그 컴파일 실패
-    cd ..
-    goto error
-)
-
-if exist ping_monitor.exe (
-    move ping_monitor.exe ..
-    cd ..
-    if exist ping_monitor.exe (
-        echo [성공] 디버그 빌드 완료
-        echo 위치: %cd%\ping_monitor.exe
-        dir ping_monitor.exe | findstr "ping_monitor.exe"
-        echo.
-        echo [디버그 실행 중...]
-        echo 콘솔 출력과 함께 실행됩니다.
-        echo 로그는 ping_monitor_debug.log에 저장됩니다.
-        echo.
-        echo 종료하려면 트레이 아이콘 우클릭 후 종료 선택
-        echo 또는 이 콘솔 창을 닫으세요.
-        echo.
-        ping_monitor.exe > ping_monitor_debug.log 2>&1
-        echo.
-        echo [로그 파일 생성 완료]
-        if exist ping_monitor_debug.log (
-            dir ping_monitor_debug.log | findstr "ping_monitor_debug.log"
-        )
-    ) else (
-        echo [실패] exe 이동 실패
-        goto error
-    )
-) else (
-    echo [실패] exe 생성 안됨
-    cd ..
-    goto error
-)
-
-goto end
-
-:deploy
-echo.
-echo ========================================
-echo 배포 패키지 생성
-echo ========================================
-echo.
-
-REM 먼저 컴파일
-call :compile_only
-if not exist ping_monitor.exe (
-    echo [오류] 실행 파일이 없습니다. 컴파일을 먼저 완료하세요.
-    goto error
-)
-
-REM 배포 폴더 생성
-set "DEPLOY_DIR=PingMonitor_v2.6_Release"
-if exist "%DEPLOY_DIR%" (
-    echo [기존 배포 폴더 삭제]
-    rd /s /q "%DEPLOY_DIR%"
-)
-
-echo [배포 폴더 생성: %DEPLOY_DIR%]
-mkdir "%DEPLOY_DIR%"
-mkdir "%DEPLOY_DIR%\config"
-mkdir "%DEPLOY_DIR%\data"
-mkdir "%DEPLOY_DIR%\web"
-mkdir "%DEPLOY_DIR%\web\css"
-
-echo [파일 복사]
-echo  - ping_monitor.exe
-copy ping_monitor.exe "%DEPLOY_DIR%\" >nul
-
-echo  - 설정 파일
-if exist config\ping_config.ini (
-    copy config\ping_config.ini "%DEPLOY_DIR%\config\" >nul
-)
-
-if exist config\int_config.ini (
-    copy config\int_config.ini "%DEPLOY_DIR%\config\" >nul
-)
-
-echo  - data 폴더 (빈 폴더)
-echo. > "%DEPLOY_DIR%\data\.gitkeep"
-
-echo  - 웹 파일
-copy web\graph.html "%DEPLOY_DIR%\web\" >nul
-
-echo  - Chart.js 라이브러리
-if exist web\chart.umd.min.js (
-    copy web\chart.umd.min.js "%DEPLOY_DIR%\web\" >nul
-    echo    chart.umd.min.js 복사 완료
-) else (
-    echo    [경고] web\chart.umd.min.js 파일이 없습니다!
-    echo    DOWNLOAD_CHARTJS.bat를 실행하여 다운로드하세요.
-)
-
-echo  - CSS 파일
-xcopy /E /I /Y web\css "%DEPLOY_DIR%\web\css" >nul
+echo 압축 파일 생성 중...
+powershell -command "Compress-Archive -Path '%RELEASE_DIR%\*' -DestinationPath '%RELEASE_DIR%.zip' -Force"
 
 echo.
-echo [압축 파일 생성]
-powershell -Command "Compress-Archive -Path '%DEPLOY_DIR%' -DestinationPath '%DEPLOY_DIR%.zip' -Force"
-
-if exist "%DEPLOY_DIR%.zip" (
-    echo.
-    echo [성공] 배포 패키지 생성 완료
-    echo.
-    echo 파일 위치:
-    echo  - 폴더: %cd%\%DEPLOY_DIR%
-    echo  - 압축: %cd%\%DEPLOY_DIR%.zip
-    echo.
-    dir "%DEPLOY_DIR%.zip" | findstr ".zip"
-) else (
-    echo [실패] 압축 파일 생성 실패
-)
-
-goto end
-
-:error
+echo ============================================
+echo   배포 패키지 생성 완료!
+echo ============================================
 echo.
-echo [오류] 빌드 실패
-pause
-exit /b 1
+echo 생성된 파일:
+echo   - %RELEASE_DIR%\           (폴더)
+echo   - %RELEASE_DIR%.zip        (압축 파일)
+echo.
+goto menu
 
 :end
 echo.
-pause
+echo 프로그램을 종료합니다.
+exit /b 0
