@@ -276,7 +276,8 @@ function updateTimelineRangeLabel() {
     if (!label) return;
     
     const rangeText = formatTimeRange(selectedTimeRange);
-    label.textContent = `(${rangeText})`;
+    // 빈 값이면 공백으로 처리
+    label.textContent = rangeText ? `(${rangeText})` : '';
 }
 
 /**
@@ -285,6 +286,11 @@ function updateTimelineRangeLabel() {
  * @returns {string} 포맷된 문자열
  */
 function formatTimeRange(seconds) {
+    // NaN 또는 유효하지 않은 값 처리
+    if (!seconds || isNaN(seconds) || seconds <= 0) {
+        return '';
+    }
+    
     if (seconds < 60) {
         return seconds + '초';
     } else if (seconds < 3600) {

@@ -135,6 +135,11 @@ function deselectAllIPsForChart() {
  * @returns {string} 포맷된 문자열 (예: "1분", "1시간")
  */
 function formatTimeRangeLabel(seconds) {
+    // NaN 또는 유효하지 않은 값 처리
+    if (!seconds || isNaN(seconds) || seconds <= 0) {
+        return '';
+    }
+    
     if (seconds < 60) {
         return seconds + '초';
     } else if (seconds < 3600) {
@@ -153,7 +158,9 @@ function formatTimeRangeLabel(seconds) {
 function updateTimelineRangeLabel(seconds) {
     const labelElement = document.getElementById('timelineRangeLabel');
     if (labelElement) {
-        labelElement.textContent = '(' + formatTimeRangeLabel(seconds) + ')';
+        const rangeText = formatTimeRangeLabel(seconds);
+        // 빈 값이면 공백으로 처리
+        labelElement.textContent = rangeText ? '(' + rangeText + ')' : '';
     }
 }
 
