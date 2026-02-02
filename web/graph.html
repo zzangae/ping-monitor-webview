@@ -13,20 +13,48 @@
     <link rel="stylesheet" href="/web/css/settings.css">
     <link rel="stylesheet" href="/web/css/responsive.css">
     <link rel="stylesheet" href="/web/config/settings.css">
+    <link rel="stylesheet" href="/web/section-ip/timeline.css">
     <script src="/web/chart.umd.min.js"></script>
+    <script src="/web/section-ip/timeline.js"></script>
     <script src="/web/config/settings.js"></script>
     <style>
-        /* 최소화 애니메이션 */
-        .collapsible-content {
-            max-height: 5000px;
-            overflow: hidden;
-            transition: max-height 0.4s ease-in-out, opacity 0.4s ease-in-out;
-            opacity: 1;
+        
+        /* 최소화된 IP 카드 스타일 수정 */
+        .minimized-cards-container {
+            padding: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         
-        .collapsible-content.collapsed {
-            max-height: 0;
-            opacity: 0;
+        .ip-card.minimized {
+            width: auto;
+            min-width: 80px;
+            max-width: 120px;
+            padding: 8px;
+            padding-bottom: 12px;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        /* 최소화된 카드의 IP 이름 - 한 줄로 제한 */
+        .ip-card.minimized .ip-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100px;
+            text-align: center;
+            font-size: 11px;
+        }
+        
+        /* 최소화된 카드의 상태 뱃지 */
+        .ip-card.minimized .status-badge {
+            margin-top: 6px;
+            margin-bottom: 4px;
+            font-size: 10px;
+            padding: 2px 8px;
         }
         
         /* 최소화 버튼 스타일 */
@@ -658,7 +686,7 @@
         let isRunning = true;
         let updateInterval;
         let timeInterval;
-        let comparisonChart;
+        // comparisonChart - timeline.js에서 관리
         let ipCharts = {};
         let currentData = null;
         let draggedElement = null;
@@ -669,13 +697,11 @@
         let modalChart = null;
         let currentModalTarget = null;
         
-        // Chart Visibility
-        let visibleIPs = new Set();
-        
-        // Extended History for Timeline (v2.7)
-        let extendedHistory = {};  // IP별 확장 히스토리 저장 {ip: [latency, ...]}
-        let selectedTimeRange = 60;  // 기본 1분 (60초)
-        const MAX_HISTORY_POINTS = 86400;  // 최대 24시간 (초 단위)
+        // visibleIPs - timeline.js에서 관리
+        // extendedHistory - timeline.js에서 관리
+        // selectedTimeRange - timeline.js에서 관리
+        // MAX_HISTORY_POINTS - timeline.js에서 관리
+        // brightColors - timeline.js에서 관리
         
         // Notification State
         let allNotifications = [];
@@ -683,22 +709,16 @@
         let allOutages = [];
         let currentOutageFilter = {status: 'all', group: 'all'};
 
-        // Bright Colors for Charts
-        const brightColors = [
-            '#FF6B9D', '#C44569', '#FFA07A', '#FF8C42',
-            '#FFD93D', '#6BCF7F', '#4ECDC4', '#45B7D1',
-            '#5F27CD', '#A55EEA', '#FF6348', '#FF9FF3',
-            '#54A0FF', '#48DBFB', '#1DD1A1', '#00D2D3',
-            '#FD79A8', '#FDCB6E', '#6C5CE7', '#A29BFE',
-            '#74B9FF', '#81ECEC', '#55EFC4', '#FFEAA7'
-        ];
-
         // DOM이 준비된 후 실행
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM 로드 완료');
             
             // Initialize event listeners
             initializeEventListeners();
+            
+            // Initialize timeline (from timeline.js)
+            initTimelineEvents();
+            loadTimelineRange();
             
             // Initialize charts and data
             initComparisonChart();
@@ -728,25 +748,7 @@
 
         function initializeEventListeners() {
             // Timeline Range Radio Buttons - settings.js로 이동됨
-
-            // Timeline Minimize Button
-            const timelineMinimizeBtn = document.getElementById('timelineMinimizeBtn');
-            const timelineContent = document.getElementById('timelineContent');
-            if (timelineMinimizeBtn && timelineContent) {
-                timelineMinimizeBtn.addEventListener('click', () => {
-                    const isCollapsed = timelineContent.classList.toggle('collapsed');
-                    timelineMinimizeBtn.classList.toggle('minimized', isCollapsed);
-                    
-                    // 상태 저장
-                    localStorage.setItem('timelineCollapsed', isCollapsed ? '1' : '0');
-                });
-                
-                // 저장된 상태 복원
-                if (localStorage.getItem('timelineCollapsed') === '1') {
-                    timelineContent.classList.add('collapsed');
-                    timelineMinimizeBtn.classList.add('minimized');
-                }
-            }
+            // Timeline Minimize Button - timeline.js의 initTimelineEvents()로 이동됨
 
             // Minimized Area Minimize Button
             const minimizedAreaMinimizeBtn = document.getElementById('minimizedAreaMinimizeBtn');
@@ -805,14 +807,8 @@
                         pausedElapsed = 0;
                         updateTime();
                         
-                        // 확장 히스토리 초기화 (v2.7)
-                        extendedHistory = {};
-                        
-                        if (comparisonChart) {
-                            comparisonChart.data.labels = [];
-                            comparisonChart.data.datasets = [];
-                            comparisonChart.update();
-                        }
+                        // 타임라인 차트 리셋 (timeline.js)
+                        resetComparisonChart();
                         
                         Object.keys(ipCharts).forEach(key => {
                             if (ipCharts[key]) {
@@ -973,40 +969,7 @@
                 `${String(uptimeHours).padStart(2, '0')}:${String(uptimeMinutes).padStart(2, '0')}:${String(uptimeSeconds).padStart(2, '0')}`;
         }
 
-        // Initialize Charts
-        function initComparisonChart() {
-            const ctx = document.getElementById('comparisonChart');
-            comparisonChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: []
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: { color: '#e4e6eb' }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: '#3a3f5c' },
-                            ticks: { color: '#b0b3b8' }
-                        },
-                        x: {
-                            grid: { color: '#3a3f5c' },
-                            ticks: { color: '#b0b3b8' }
-                        }
-                    }
-                }
-            });
-        }
+        // initComparisonChart - timeline.js로 이동됨
 
         function createIPChart(canvasId, index) {
             const ctx = document.getElementById(canvasId);
@@ -1099,130 +1062,9 @@
             updateModalIfOpen();
         }
 
-        // Update Comparison Chart (v2.7 - Extended Timeline Support)
-        function updateComparisonChart(targets) {
-            // 확장 히스토리 업데이트
-            targets.forEach(target => {
-                const key = target.ip;
-                if (!extendedHistory[key]) {
-                    extendedHistory[key] = [];
-                }
-                
-                // 최신 latency 값 추가 (초당 1개)
-                const currentLatency = target.online ? target.latency : 0;
-                extendedHistory[key].push(currentLatency);
-                
-                // 최대 포인트 수 제한
-                if (extendedHistory[key].length > MAX_HISTORY_POINTS) {
-                    extendedHistory[key].shift();
-                }
-            });
-            
-            // 시간 범위에 따른 레이블 생성
-            const labels = generateTimeLabels(selectedTimeRange);
-            comparisonChart.data.labels = labels;
-            
-            const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
-            
-            comparisonChart.data.datasets = filteredTargets.map((target) => {
-                const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
-                const key = target.ip;
-                
-                // 확장 히스토리에서 필요한 범위만 가져오기
-                const history = extendedHistory[key] || [];
-                const displayData = getDisplayData(history, selectedTimeRange);
-                
-                return {
-                    label: target.name,
-                    data: displayData,
-                    borderColor: brightColors[originalIndex % brightColors.length],
-                    backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
-                    tension: 0.4,
-                    borderWidth: 2,
-                    fill: false,
-                    pointRadius: selectedTimeRange <= 300 ? 2 : 0,  // 5분 이하면 점 표시
-                    pointHoverRadius: 4
-                };
-            });
-            
-            comparisonChart.update();
-        }
-        
-        // 시간 범위에 따른 레이블 생성 (v2.7)
-        function generateTimeLabels(timeRangeSeconds) {
-            const totalPoints = Math.min(60, timeRangeSeconds);  // 최대 60개 포인트
-            const interval = timeRangeSeconds / totalPoints;
-            const labels = [];
-            
-            for (let i = totalPoints; i >= 1; i--) {
-                const secondsAgo = Math.round(i * interval);
-                
-                if (timeRangeSeconds <= 60) {
-                    // 1분: 초 단위
-                    labels.push(secondsAgo + '초');
-                } else if (timeRangeSeconds <= 3600) {
-                    // 1시간 이하: 분:초
-                    const mins = Math.floor(secondsAgo / 60);
-                    const secs = secondsAgo % 60;
-                    if (secs === 0) {
-                        labels.push(mins + '분');
-                    } else {
-                        labels.push(mins + ':' + String(secs).padStart(2, '0'));
-                    }
-                } else {
-                    // 1시간 초과: 시:분
-                    const hours = Math.floor(secondsAgo / 3600);
-                    const mins = Math.floor((secondsAgo % 3600) / 60);
-                    if (hours > 0) {
-                        labels.push(hours + '시간 ' + mins + '분');
-                    } else {
-                        labels.push(mins + '분');
-                    }
-                }
-            }
-            
-            return labels;
-        }
-        
-        // 확장 히스토리에서 표시할 데이터 추출 (v2.7)
-        function getDisplayData(history, timeRangeSeconds) {
-            const totalPoints = Math.min(60, timeRangeSeconds);  // 최대 60개 포인트
-            const interval = Math.floor(timeRangeSeconds / totalPoints);
-            
-            // 필요한 데이터 포인트 수
-            const neededPoints = timeRangeSeconds;
-            
-            // 히스토리가 충분하지 않으면 있는 만큼만 사용
-            const availableHistory = history.slice(-neededPoints);
-            
-            if (availableHistory.length === 0) {
-                return Array(totalPoints).fill(null);
-            }
-            
-            // 샘플링하여 60개 이하의 포인트로 줄이기
-            const result = [];
-            for (let i = 0; i < totalPoints; i++) {
-                const startIdx = Math.floor(i * interval);
-                const endIdx = Math.min(startIdx + interval, availableHistory.length);
-                
-                if (startIdx < availableHistory.length) {
-                    // 해당 구간의 평균값 계산
-                    const slice = availableHistory.slice(startIdx, endIdx);
-                    const validValues = slice.filter(v => v !== null && v !== undefined && v > 0);
-                    
-                    if (validValues.length > 0) {
-                        const avg = validValues.reduce((a, b) => a + b, 0) / validValues.length;
-                        result.push(Math.round(avg));
-                    } else {
-                        result.push(null);
-                    }
-                } else {
-                    result.push(null);
-                }
-            }
-            
-            return result;
-        }
+        // updateComparisonChart - timeline.js로 이동됨
+        // generateTimeLabels - timeline.js로 이동됨
+        // getDisplayData - timeline.js로 이동됨
 
         // Chart Settings Functions - settings.js로 이동됨
 

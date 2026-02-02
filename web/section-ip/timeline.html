@@ -1,0 +1,38 @@
+<!-- 
+    IP 비교 타임라인 섹션 HTML 템플릿
+    Ping Monitor v2.7
+    
+    이 파일은 graph.html에 포함될 HTML 구조입니다.
+    직접 include되지 않고 참고용으로 제공됩니다.
+-->
+
+<!-- Comparison Chart Card -->
+<div class="card" id="comparisonChartCard">
+    <div class="card-header">
+        <div class="card-title" id="timelineTitle">
+            IP 비교 타임라인 
+            <span id="timelineRangeLabel">(1분)</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <!-- 환경설정 버튼 -->
+            <button class="chart-settings-btn" id="chartSettingsBtn" title="환경설정">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
+                </svg>
+            </button>
+            <!-- 최소화 버튼 -->
+            <button class="minimize-btn" id="timelineMinimizeBtn" title="타임라인 최소화/확대">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <!-- 차트 컨텐츠 (최소화 가능) -->
+    <div class="collapsible-content" id="timelineContent">
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="comparisonChart"></canvas>
+        </div>
+    </div>
+</div>

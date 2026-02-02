@@ -1,0 +1,99 @@
+/**
+ * IP 비교 타임라인 섹션 CSS
+ * Ping Monitor v2.7
+ */
+
+/* 타임라인 카드 */
+#comparisonChartCard {
+    margin-bottom: 20px;
+}
+
+#comparisonChartCard .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#comparisonChartCard .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#timelineRangeLabel {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    font-weight: normal;
+}
+
+/* 차트 컨테이너 */
+#comparisonChartCard .chart-container {
+    height: 300px;
+    padding: 10px;
+}
+
+/* 최소화 애니메이션 */
+.collapsible-content {
+    max-height: 5000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out, opacity 0.4s ease-in-out;
+    opacity: 1;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+/* 최소화 버튼 스타일 */
+.minimize-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.minimize-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.minimize-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.minimize-btn.minimized svg {
+    transform: rotate(180deg);
+}
+
+/* 차트 설정 버튼 */
+.chart-settings-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-settings-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.chart-settings-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.chart-settings-btn:hover svg {
+    transform: rotate(45deg);
+}
