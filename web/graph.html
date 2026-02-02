@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ping Monitor v2.7 Dashboard</title>
+    <title>Ping 응답 확인 시각화 도구 v2.7</title>
     <link rel="stylesheet" href="/web/css/variables.css">
     <link rel="stylesheet" href="/web/css/base.css">
     <link rel="stylesheet" href="/web/css/components.css">
@@ -113,7 +113,7 @@
             min-width: 100px;
         }
         
-        /* 임계값 입력 + 슬라이더 그룹 */
+        /* 기준 시간 입력 + 슬라이더 그룹 */
         .threshold-input-group {
             display: flex;
             align-items: center;
@@ -171,7 +171,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
         }
         
-        /* 기본 임계값용 슬라이더 */
+        /* 기본 기준 시간용 슬라이더 */
         .threshold-slider {
             height: 8px;
             -webkit-appearance: none;
@@ -226,8 +226,8 @@
 <body>
     <!-- Header -->
     <div class="header" id="mainHeader">
-        <h1>🌐 Ping Monitor v2.7 Dashboard</h1>
-        <div class="header-subtitle">Real-time Network Monitoring with Outage Management</div>
+        <h1>🌐 Ping 응답 확인 시각화 도구 v2.7</h1>
+        <div class="header-subtitle">다수의 IP에 대한 ping 응답 결과를 시각적으로 확인합니다</div>
     </div>
 
     <!-- Tab Navigation -->
@@ -235,7 +235,7 @@
         <div class="tab-nav">
             <button class="tab-btn active" data-tab="dashboard">📊 대시보드</button>
             <button class="tab-btn" data-tab="notifications">🔔 알림 기록</button>
-            <button class="tab-btn" data-tab="outages">🔥 장애 현황</button>
+            <button class="tab-btn" data-tab="outages">📋 미응답 기록</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -253,7 +253,7 @@
                         <div class="time-value" id="currentDate">0000-00-00</div>
                     </div>
                     <div class="time-display">
-                        <div class="time-label">모니터링 시간</div>
+                        <div class="time-label">실행 시간</div>
                         <div class="time-value" id="uptime">00:00:00</div>
                     </div>
                 </div>
@@ -340,7 +340,7 @@
                             ⏱️ 시간 범위
                         </button>
                         <button class="settings-tab-btn" data-settings-tab="thresholds">
-                            🎯 그룹별 임계값
+                            🎯 그룹별 설정
                         </button>
                         <button class="settings-tab-btn" data-settings-tab="ipgroups">
                             📋 IP 그룹 관리
@@ -415,17 +415,17 @@
                     </div>
                 </div>
                 
-                <!-- Tab 3: 그룹별 임계값 -->
+                <!-- Tab 3: 그룹별 설정 -->
                 <div class="settings-tab-content" id="settings-thresholds">
                     <div class="settings-scroll-box">
                         <!-- Content -->
                         <div id="thresholdContent">
                             <div class="settings-section">
                                 <div class="settings-section-title">
-                                    ⚡ 기본 임계값
+                                    ⚡ 기본 설정
                                 </div>
                                 <div class="settings-form-group">
-                                    <label class="settings-label">장애 판정 임계값 (초)</label>
+                                    <label class="settings-label">미응답 기록 기준 시간 (초)</label>
                                     <div class="threshold-input-group">
                                         <input type="number" class="settings-input" id="defaultThreshold" 
                                                value="300" min="30" max="3600" step="10"
@@ -435,20 +435,20 @@
                                                oninput="syncThresholdInput('defaultThreshold')">
                                     </div>
                                     <div class="settings-help">
-                                        IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
+                                        IP가 이 시간(초) 동안 응답이 없으면 미응답으로 기록됩니다. (기본: 300초 = 5분)
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="settings-section">
                                 <div class="settings-section-title">
-                                    📊 그룹별 커스텀 임계값
+                                    📊 그룹별 커스텀 설정
                                 </div>
                                 <table class="threshold-table">
                                     <thead>
                                         <tr>
                                             <th>그룹</th>
-                                            <th>임계값 (초)</th>
+                                            <th>기준 시간 (초)</th>
                                             <th>슬라이더</th>
                                             <th>설명</th>
                                         </tr>
@@ -511,8 +511,8 @@
                             <div style="font-size: 48px; margin-bottom: 16px;">🏷️</div>
                             <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">IP 그룹 및 우선순위 관리</h3>
                             <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
-                                모니터링 중인 IP를 그룹으로 분류하고 우선순위를 설정할 수 있습니다.<br>
-                                우선순위 1이 가장 높으며, 장애 발생 시 중요도를 판단하는 기준이 됩니다.<br><br>
+                                확인 중인 IP를 그룹으로 분류하고 우선순위를 설정할 수 있습니다.<br>
+                                우선순위 1이 가장 높습니다.<br><br>
                                 <strong>그룹 종류:</strong> 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
                             </p>
                         </div>
@@ -1528,7 +1528,7 @@
             }
         }
 
-        // Outage Management Functions (v2.6)
+        // 미응답 기록 관리 Functions (v2.6)
         async function loadOutages() {
             try {
                 const response = await fetch('/data/outage_log.json?t=' + Date.now());
@@ -1536,8 +1536,8 @@
                 allOutages = data.outages || [];
                 renderOutages();
             } catch (error) {
-                console.error('장애 로그 로드 실패:', error);
-                document.getElementById('outageList').innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+                console.error('미응답 로그 로드 실패:', error);
+                document.getElementById('outageList').innerHTML = '<div class="no-outages">미응답 기록이 없습니다.</div>';
             }
         }
 
@@ -1553,7 +1553,7 @@
             filtered.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="no-outages">장애 기록이 없습니다.</div>';
+                container.innerHTML = '<div class="no-outages">미응답 기록이 없습니다.</div>';
                 return;
             }
 
