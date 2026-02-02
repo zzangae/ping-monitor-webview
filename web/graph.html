@@ -54,33 +54,47 @@
             transform: rotate(180deg);
         }
         
-        /* 타임라인 시간 범위 선택 스타일 (v2.7) */
-        .timeline-range-select {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 6px 12px;
-            border-radius: 4px;
+        /* 시간 범위 라디오 버튼 스타일 (v2.7) */
+        .time-range-radio-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        
+        .time-range-radio {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
             transition: all 0.2s;
-            outline: none;
-            min-width: 100px;
         }
         
-        .timeline-range-select:hover {
-            background: rgba(255, 255, 255, 0.2);
+        .time-range-radio:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
         }
         
-        .timeline-range-select:focus {
+        .time-range-radio input[type="radio"] {
+            margin-right: 8px;
+            accent-color: var(--primary);
+        }
+        
+        .time-range-radio input[type="radio"]:checked + .radio-label {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .time-range-radio:has(input:checked) {
+            background: rgba(99, 102, 241, 0.15);
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
         }
         
-        .timeline-range-select option {
-            background: #1e2139;
-            color: #fff;
-            padding: 8px;
+        .radio-label {
+            color: #e4e6eb;
+            font-size: 13px;
         }
     </style>
 
@@ -165,19 +179,7 @@
                 <div class="card-header">
                     <div class="card-title">IP 비교 타임라인</div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <!-- 시간 범위 선택 (v2.7) -->
-                        <select class="timeline-range-select" id="timelineRangeSelect" title="시간 범위 선택">
-                            <option value="60">1분</option>
-                            <option value="300">5분</option>
-                            <option value="600">10분</option>
-                            <option value="1800">30분</option>
-                            <option value="3600">1시간</option>
-                            <option value="10800">3시간</option>
-                            <option value="18000">5시간</option>
-                            <option value="43200">12시간</option>
-                            <option value="86400">24시간</option>
-                        </select>
-                        <button class="chart-settings-btn" id="chartSettingsBtn" title="표시할 IP 선택">
+                        <button class="chart-settings-btn" id="chartSettingsBtn" title="환경설정">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="3"></circle>
                                 <path d="M12 1v6m0 6v6m5.2-13.2l-4.3 4.3M7.8 16.4l-4.3 4.3M23 12h-6m-6 0H1m17.8-5.2l-4.3 4.3M7.8 7.8L3.5 3.5"></path>
@@ -201,7 +203,7 @@
             <div class="modal" id="chartSettingsModal">
                 <div class="modal-content" style="max-width: 400px;">
                     <div class="modal-header">
-                        <h3>표시할 IP 선택</h3>
+                        <h3>환경설정</h3>
                         <button class="modal-close" id="closeChartSettings">&times;</button>
                     </div>
                     <div class="modal-body">
@@ -210,8 +212,11 @@
                     <button class="settings-tab-btn active" data-settings-tab="chart">
                         📊 차트 설정
                     </button>
+                    <button class="settings-tab-btn" data-settings-tab="timerange">
+                        ⏱️ 시간 범위
+                    </button>
                     <button class="settings-tab-btn" data-settings-tab="thresholds">
-                        ⏱️ 그룹별 임계값
+                        🎯 그룹별 임계값
                     </button>
                     <button class="settings-tab-btn" data-settings-tab="ipgroups">
                         📋 IP 그룹 관리
@@ -224,18 +229,67 @@
                 
                 <!-- Tab 1: 차트 설정 (기존) -->
                 <div class="settings-tab-content active" id="settings-chart">
-
-                        <div class="chart-settings-controls">
-                            <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
-                            <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
-                            <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
-                        </div>
-                        <div class="ip-checkbox-list" id="ipCheckboxList">
-                            <!-- IP 체크박스가 동적으로 추가됩니다 -->
-                        
+                    <div class="chart-settings-controls">
+                        <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
+                        <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
+                        <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
+                    </div>
+                    <div class="ip-checkbox-list" id="ipCheckboxList">
+                        <!-- IP 체크박스가 동적으로 추가됩니다 -->
+                    </div>
                 </div>
                 
-                <!-- Tab 2: 그룹별 임계값 -->
+                <!-- Tab 2: 시간 범위 (v2.7) -->
+                <div class="settings-tab-content" id="settings-timerange">
+                    <div class="settings-section">
+                        <div class="settings-section-title">
+                            ⏱️ 타임라인 시간 범위
+                        </div>
+                        <div class="settings-help" style="margin-bottom: 16px;">
+                            IP 비교 타임라인 차트에 표시할 시간 범위를 선택합니다.
+                        </div>
+                        <div class="time-range-radio-group" id="timeRangeRadioGroup">
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="60">
+                                <span class="radio-label">1분</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="300">
+                                <span class="radio-label">5분</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="600">
+                                <span class="radio-label">10분</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="1800">
+                                <span class="radio-label">30분</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="3600">
+                                <span class="radio-label">1시간</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="10800">
+                                <span class="radio-label">3시간</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="18000">
+                                <span class="radio-label">5시간</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="43200">
+                                <span class="radio-label">12시간</span>
+                            </label>
+                            <label class="time-range-radio">
+                                <input type="radio" name="timeRange" value="86400">
+                                <span class="radio-label">24시간</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 3: 그룹별 임계값 -->
                 <div class="settings-tab-content" id="settings-thresholds">
                     <!-- Empty State Guide -->
                     <div id="thresholdEmptyState" class="empty-state" style="display: block;">
@@ -250,75 +304,75 @@
                     
                     <!-- Content -->
                     <div id="thresholdContent" style="display: none;">
-                    <div class="settings-section">
-                        <div class="settings-section-title">
-                            ⚡ 기본 임계값
-                        </div>
-                        <div class="settings-form-group">
-                            <label class="settings-label">장애 판정 임계값 (초)</label>
-                            <input type="number" class="settings-input" id="defaultThreshold" 
-                                   value="300" min="30" max="3600" step="30">
-                            <div class="settings-help">
-                                IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
+                        <div class="settings-section">
+                            <div class="settings-section-title">
+                                ⚡ 기본 임계값
+                            </div>
+                            <div class="settings-form-group">
+                                <label class="settings-label">장애 판정 임계값 (초)</label>
+                                <input type="number" class="settings-input" id="defaultThreshold" 
+                                       value="300" min="30" max="3600" step="30">
+                                <div class="settings-help">
+                                    IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="settings-section">
-                        <div class="settings-section-title">
-                            📊 그룹별 커스텀 임계값
+                        
+                        <div class="settings-section">
+                            <div class="settings-section-title">
+                                📊 그룹별 커스텀 임계값
+                            </div>
+                            <table class="threshold-table">
+                                <thead>
+                                    <tr>
+                                        <th>그룹</th>
+                                        <th>임계값 (초)</th>
+                                        <th>설명</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>🖥️ 서버</td>
+                                        <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">서버: 3분 (180초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>🌐 네트워크</td>
+                                        <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">네트워크: 5분 (300초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>🛡️ 방화벽</td>
+                                        <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">방화벽: 2분 (120초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>💾 데이터베이스</td>
+                                        <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">데이터베이스: 3분 (180초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>🌍 웹서버</td>
+                                        <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">웹서버: 4분 (240초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>📦 스토리지</td>
+                                        <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">스토리지: 5분 (300초)</td>
+                                    </tr>
+                                    <tr>
+                                        <td>🔧 기타</td>
+                                        <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
+                                        <td class="settings-help">기타: 5분 (300초)</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <table class="threshold-table">
-                            <thead>
-                                <tr>
-                                    <th>그룹</th>
-                                    <th>임계값 (초)</th>
-                                    <th>설명</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>🖥️ 서버</td>
-                                    <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">서버: 3분 (180초)</td>
-                                </tr>
-                                <tr>
-                                    <td>🌐 네트워크</td>
-                                    <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">네트워크: 5분 (300초)</td>
-                                </tr>
-                                <tr>
-                                    <td>🛡️ 방화벽</td>
-                                    <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">방화벽: 2분 (120초)</td>
-                                </tr>
-                                <tr>
-                                    <td>💾 데이터베이스</td>
-                                    <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">데이터베이스: 3분 (180초)</td>
-                                </tr>
-                                <tr>
-                                    <td>🌍 웹서버</td>
-                                    <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">웹서버: 4분 (240초)</td>
-                                </tr>
-                                <tr>
-                                    <td>📦 스토리지</td>
-                                    <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">스토리지: 5분 (300초)</td>
-                                </tr>
-                                <tr>
-                                    <td>🔧 기타</td>
-                                    <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
-                                    <td class="settings-help">기타: 5분 (300초)</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
                     </div>
                 </div>
                 
-                <!-- Tab 3: IP 그룹 관리 -->
+                <!-- Tab 4: IP 그룹 관리 -->
                 <div class="settings-tab-content" id="settings-ipgroups">
                     <!-- Empty State Guide -->
                     <div id="ipgroupEmptyState" class="empty-state" style="display: block;">
@@ -333,33 +387,33 @@
                     
                     <!-- Content -->
                     <div id="ipgroupContent" style="display: none;">
-                    <div class="settings-section">
-                        <div class="settings-section-title">
-                            🏷️ IP별 그룹 및 우선순위
+                        <div class="settings-section">
+                            <div class="settings-section-title">
+                                🏷️ IP별 그룹 및 우선순위
+                            </div>
+                            <div class="settings-help" style="margin-bottom: 16px;">
+                                각 IP의 그룹과 우선순위를 설정합니다. 우선순위 1이 가장 높습니다.
+                            </div>
+                            <table class="ip-config-table" id="ipConfigTable">
+                                <thead>
+                                    <tr>
+                                        <th>IP 주소</th>
+                                        <th>이름</th>
+                                        <th>그룹</th>
+                                        <th>우선순위 (1-5)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ipConfigTableBody">
+                                    <!-- Dynamically populated -->
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="settings-help" style="margin-bottom: 16px;">
-                            각 IP의 그룹과 우선순위를 설정합니다. 우선순위 1이 가장 높습니다.
-                        </div>
-                        <table class="ip-config-table" id="ipConfigTable">
-                            <thead>
-                                <tr>
-                                    <th>IP 주소</th>
-                                    <th>이름</th>
-                                    <th>그룹</th>
-                                    <th>우선순위 (1-5)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ipConfigTableBody">
-                                <!-- Dynamically populated -->
-                            </tbody>
-                        </table>
-                    </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-            </div>
+                
+                    </div><!-- modal-body -->
+                </div><!-- modal-content -->
+            </div><!-- modal -->
 
             <!-- Minimized Cards Area -->
             <div id="minimizedCardsArea" class="minimized-cards-area" style="display: none;">
@@ -563,25 +617,36 @@
         });
 
         function initializeEventListeners() {
-            // Timeline Range Select (v2.7)
-            const timelineRangeSelect = document.getElementById('timelineRangeSelect');
-            if (timelineRangeSelect) {
+            // Timeline Range Radio Buttons (v2.7)
+            const timeRangeRadios = document.querySelectorAll('input[name="timeRange"]');
+            if (timeRangeRadios.length > 0) {
                 // 저장된 시간 범위 복원
                 const savedRange = localStorage.getItem('timelineRange');
                 if (savedRange) {
                     selectedTimeRange = parseInt(savedRange);
-                    timelineRangeSelect.value = savedRange;
+                    const savedRadio = document.querySelector(`input[name="timeRange"][value="${savedRange}"]`);
+                    if (savedRadio) {
+                        savedRadio.checked = true;
+                    }
+                } else {
+                    // 기본값 1분 선택
+                    const defaultRadio = document.querySelector('input[name="timeRange"][value="60"]');
+                    if (defaultRadio) {
+                        defaultRadio.checked = true;
+                    }
                 }
                 
-                timelineRangeSelect.addEventListener('change', (e) => {
-                    selectedTimeRange = parseInt(e.target.value);
-                    localStorage.setItem('timelineRange', selectedTimeRange.toString());
-                    console.log('타임라인 범위 변경:', selectedTimeRange, '초');
-                    
-                    // 차트 즉시 업데이트
-                    if (currentData && currentData.targets) {
-                        updateComparisonChart(currentData.targets);
-                    }
+                timeRangeRadios.forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        selectedTimeRange = parseInt(e.target.value);
+                        localStorage.setItem('timelineRange', selectedTimeRange.toString());
+                        console.log('타임라인 범위 변경:', selectedTimeRange, '초');
+                        
+                        // 차트 즉시 업데이트
+                        if (currentData && currentData.targets) {
+                            updateComparisonChart(currentData.targets);
+                        }
+                    });
                 });
             }
 
