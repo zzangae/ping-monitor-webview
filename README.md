@@ -8,9 +8,8 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
 **GitHub**: https://github.com/zzangae/pings
 
----
+## 목차
 
-## 문서
 - [시스템 아키텍처](docs/ARCHITECTURE.md)
 - [파일 구조 및 배포](docs/FILE_STRUCTURE.md)
 - [설치 및 빌드 가이드](docs/INSTALLATION.md)
@@ -27,214 +26,901 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
 ---
 
-# Ping Monitor v2.6 - 새로운 기능
+## 1. 시스템 아키텍처
 
-## 📊 주요 업데이트
+### 1.1 전체 구조도
 
-### 1. 장애 관리 시스템 (Outage Management)
-**IP가 다운된 시간을 자동으로 추적하고 기록합니다.**
+```
+┌─────────────────────────────────────────────────────────┐
+│                Ping Monitor v2.6 Architecture            │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  ┌─────────────────┐        ┌──────────────────────┐   │
+│  │   C Backend     │◄──────►│   Embedded HTTP      │   │
+│  │                 │        │   Server             │   │
+│  │ • ICMP Ping     │        │ • Port 8080-8099     │   │
+│  │ • Network Loop  │        │ • Static Files       │   │
+│  │ • Data Gen      │        │ • JSON API           │   │
+│  │ • Outage Track  │        │ • /shutdown          │   │
+│  │ • Custom Alert  │        └──────────────────────┘   │
+│  └─────────────────┘                   │                │
+│           │                            │                │
+│           ▼                            ▼                │
+│  ┌─────────────────┐        ┌──────────────────────┐   │
+│  │   Data Layer    │        │   Web Frontend       │   │
+│  │                 │        │                      │   │
+│  │ • JSON Files    │◄──────►│ • HTML/CSS/JS        │   │
+│  │ • INI Configs   │        │ • Chart.js           │   │
+│  │ • Atomic Write  │        │ • Real-time Update   │   │
+│  └─────────────────┘        └──────────────────────┘   │
+│                                                           │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │            System Tray Integration               │   │
+│  │  • Start/Stop  • Browser  • Notifications        │   │
+│  │  • Reload Config  • Change Port  • Exit          │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
 
-- **자동 장애 감지**: 5분(300초) 연속 다운 시 장애로 판정
-- **그룹별 임계값**: 7개 그룹마다 다른 임계값 설정 가능
-  - 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
-- **장애 로그**: `outage_log.json`에 자동 기록
-  - 시작 시간, 종료 시간, 지속 시간
-  - IP, 이름, 그룹, 우선순위
-- **장애 타임라인 탭**: 대시보드에서 장애 이력 확인
+### 1.2 핵심 컴포넌트
 
-**설정 예시:**
+#### 1.2.1 C Backend
+
+- **언어**: C (GCC 14.2.0)
+- **플랫폼**: Windows (MinGW-w64)
+- **주요 기능**:
+  - ICMP 에코 요청/응답 처리
+  - 멀티 IP 동시 모니터링
+  - 장애 감지 및 복구 추적
+  - 커스텀 알림 창 시스템
+  - 설정 파일 파싱
+
+#### 1.2.2 Embedded HTTP Server
+
+- **포트 범위**: 8080-8099 (자동 탐색)
+- **Document Root**: 실행 파일 위치
+- **엔드포인트**:
+  - `GET /web/graph.html` - 메인 대시보드
+  - `GET /data/ping_data.json` - 실시간 핑 데이터
+  - `GET /data/notification_log.json` - 알림 로그
+  - `GET /data/outage_log.json` - 장애 로그
+  - `GET /config/ping_config.ini` - 설정 파일 (읽기 전용)
+  - `POST /shutdown` - 서버 종료
+
+#### 1.2.3 Web Frontend
+
+- **기술 스택**:
+  - HTML5 + CSS3
+  - Vanilla JavaScript (ES6+)
+  - Chart.js 4.4.0 (로컬 호스팅)
+- **주요 기능**:
+  - 실시간 차트 시각화
+  - IP 비교 타임라인
+  - 알림/장애 현황 필터링
+  - 그룹 관리 및 임계값 설정
+  - LocalStorage 상태 저장
+
+#### 1.2.4 Custom Notification System
+
+- **특징**: Outlook 스타일 커스텀 알림 창
+- **위치**: 화면 우하단 (트레이 아이콘 가리지 않음)
+- **애니메이션**: 페이드 인/아웃
+- **자동 닫힘**: 5초 후
+- **스레드 안전**: PostMessage를 통한 메인 스레드 처리
+
+### 1.3 데이터 흐름
+
+```
+[Config Files] → [C Backend] → [JSON Files] → [Web Frontend]
+      ↓              ↓              ↑              ↓
+ ping_config.ini   ICMP Ping   HTTP Server    Chart.js
+ int_config.ini    Network      (localhost)   Dashboard
+                   Monitoring
+```
+
+### 1.4 모듈 구조
+
+```
+ping_monitor_webview.c (메인)
+├── module/
+│   ├── types.h          (타입 정의)
+│   ├── config.c/h       (설정 파일 로딩)
+│   ├── network.c/h      (네트워크 모니터링)
+│   ├── notification.c/h (커스텀 알림)
+│   ├── port.c/h         (포트 관리 다이얼로그)
+│   └── tray.c/h         (시스템 트레이)
+├── http_server.c/h      (HTTP 서버)
+├── outage.c/h           (장애 추적)
+├── browser_monitor.c/h  (브라우저 감지)
+└── config_api.c/h       (설정 API)
+```
+
+---
+
+## 2. 파일 구조 및 배포
+
+### 2.1 개발 환경 구조
+
+```
+ping_monitor_v26/
+├── ping_monitor.exe          # 실행 파일 (빌드 후 생성)
+├── build.bat                 # 빌드 스크립트
+├── DOWNLOAD_CHARTJS.bat      # Chart.js 다운로드
+├── README.md
+├── DOCUMENTATION_v2.6.md
+├── GRAPH_HTML_SUMMARY.md
+│
+├── main/                     # C 소스 코드
+│   ├── ping_monitor_webview.c
+│   ├── http_server.c/h
+│   ├── outage.c/h
+│   ├── browser_monitor.c/h
+│   ├── config_api.c/h
+│   └── module/
+│       ├── types.h
+│       ├── config.c/h
+│       ├── network.c/h
+│       ├── notification.c/h
+│       ├── port.c/h
+│       └── tray.c/h
+│
+├── config/                   # 설정 파일
+│   ├── ping_config.ini      # 공개 IP 설정
+│   └── int_config.ini       # 내부 IP 설정
+│
+├── data/                     # 자동 생성 데이터 (실행 시)
+│   ├── ping_data.json
+│   ├── notification_log.json
+│   └── outage_log.json
+│
+└── web/                      # 웹 파일
+    ├── graph.html
+    ├── chart.umd.min.js     # 205KB
+    └── css/
+        ├── variables.css
+        ├── base.css
+        ├── components.css
+        ├── dashboard.css
+        ├── notifications.css
+        ├── outages.css
+        ├── settings.css
+        └── responsive.css
+```
+
+### 2.2 배포 패키지 구조
+
+```
+PingMonitor_v2.6_Release/
+├── ping_monitor.exe
+├── config/
+│   ├── ping_config.ini
+│   └── int_config.ini
+├── data/                     # 빈 폴더 (실행 시 생성)
+│   └── .gitkeep
+└── web/
+    ├── graph.html
+    ├── chart.umd.min.js
+    └── css/
+        └── (8개 CSS 파일)
+```
+
+### 2.3 실행 파일 크기
+
+- **ping_monitor.exe**: ~150KB
+- **chart.umd.min.js**: ~205KB
+- **총 배포 패키지**: ~500KB (압축 시 ~300KB)
+
+---
+
+## 3. 설치 및 빌드 가이드
+
+### 3.1 필수 요구사항
+
+#### 3.1.1 개발 환경
+
+- **OS**: Windows 10/11 (64-bit)
+- **컴파일러**: MinGW-w64 GCC 14.2.0 이상
+- **빌드 도구**: GNU Make (선택사항)
+
+#### 3.1.2 런타임 요구사항
+
+- **OS**: Windows 10/11
+- **브라우저**: Chrome, Edge, Firefox (최신 버전)
+- **권한**: 관리자 권한 (ICMP 핑 사용 시 필요할 수 있음)
+
+### 3.2 MinGW 설치
+
+#### 3.2.1 다운로드
+
+```
+https://github.com/niXman/mingw-builds-binaries/releases
+→ x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev0.7z
+```
+
+#### 3.2.2 설치
+
+1. 압축 해제: `C:\mingw64`
+2. 환경 변수 추가: `PATH`에 `C:\mingw64\bin` 추가
+3. 확인:
+
+```cmd
+gcc --version
+```
+
+### 3.3 빌드 방법
+
+#### 3.3.1 build.bat 사용 (권장)
+
+```cmd
+cd ping_monitor_v26
+build.bat
+```
+
+**메뉴 선택:**
+
+```
+1. 컴파일 및 실행
+2. 컴파일만
+3. 디버그 모드 (콘솔 출력 + 로그 파일)
+4. 배포 패키지 생성
+5. 종료
+```
+
+#### 3.3.2 수동 컴파일
+
+```cmd
+cd main
+
+REM 컴파일
+gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -mwindows
+gcc -c module\config.c -o module_config.o
+gcc -c module\network.c -o module_network.o
+gcc -c module\notification.c -o module_notification.o
+gcc -c module\port.c -o module_port.o
+gcc -c outage.c -o outage.o
+
+REM 링킹
+gcc -o ping_monitor.exe ^
+    ping_monitor_webview.o ^
+    module_config.o ^
+    module_network.o ^
+    module_notification.o ^
+    module_port.o ^
+    outage.o ^
+    module\tray.c ^
+    http_server.c ^
+    browser_monitor.c ^
+    config_api.c ^
+    -municode -mwindows ^
+    -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
+
+REM 루트로 이동
+move ping_monitor.exe ..
+```
+
+#### 3.3.3 Chart.js 다운로드
+
+```cmd
+DOWNLOAD_CHARTJS.bat
+```
+
+→ `web/chart.umd.min.js` 생성
+
+### 3.4 배포 패키지 생성
+
+```cmd
+build.bat
+→ 4 선택
+```
+
+**생성 파일:**
+
+- `PingMonitor_v2.6_Release/` (폴더)
+- `PingMonitor_v2.6_Release.zip` (압축)
+
+---
+
+## 4. 사용자 가이드
+
+### 4.1 첫 실행
+
+#### 4.1.1 설정 파일 준비
+
+1. `config/ping_config.ini` 편집
+2. 모니터링할 IP 추가:
+
 ```ini
-[OutageDetection]
-OutageThreshold=300              # 기본 5분
-ServerOutageThreshold=180        # 서버: 3분
-DatabaseOutageThreshold=180      # DB: 3분
-FirewallOutageThreshold=120      # 방화벽: 2분
+[Targets]
+8.8.8.8,Google DNS
+1.1.1.1,Cloudflare DNS
 ```
 
+#### 4.1.2 실행
+
+```cmd
+ping_monitor.exe
+```
+
+또는 더블클릭
+
+#### 4.1.3 자동 동작
+
+1. HTTP 서버 시작 (포트 8080-8099 자동 탐색)
+2. 시스템 트레이 아이콘 생성
+3. 기본 브라우저로 대시보드 오픈
+4. 백그라운드에서 모니터링 시작
+
+### 4.2 시스템 트레이 메뉴
+
+**트레이 아이콘 우클릭:**
+
+```
+🟢 Ping Monitor v2.6
+├─ ▶ 시작 / ⏸ 일시정지
+├─ 🌐 웹 대시보드 열기
+├─ 🔔 알림 활성화 ☑
+├─ 🔄 설정 다시 불러오기
+├─ 🔧 서버 포트 변경
+└─ ❌ 종료
+```
+
+**트레이 아이콘 더블클릭:**
+
+- 웹 대시보드 오픈
+
+### 4.3 웹 대시보드 사용법
+
+#### 4.3.1 탭 구조
+
+- **📊 대시보드**: 실시간 모니터링
+- **🔔 알림 기록**: 타임아웃/복구 알림
+- **🔥 장애 현황**: 장애 발생/복구 이력
+
+#### 4.3.2 대시보드 기능
+
+**통합 컨트롤 바:**
+
+- 현재 시간/날짜
+- 모니터링 시간 (uptime)
+- 일시정지/시작 버튼
+- 새로고침 버튼
+- 통계 (전체/온라인/오프라인/평균 지연시간)
+
+**IP 비교 타임라인:**
+
+- 여러 IP의 지연시간을 실시간 그래프로 비교
+- ⚙️ 설정 버튼:
+  - 📊 차트 설정: 표시할 IP 선택
+  - ⏱️ 그룹별 임계값: 경고/위험 레벨 설정
+  - 📋 IP 그룹 관리: IP 그룹화
+- ▲ 최소화 버튼: 차트만 숨기기/표시
+
+**IP 카드:**
+
+- 각 IP별 실시간 정보
+  - 온라인/오프라인 상태 (🟢/🔴)
+  - 현재 지연시간
+  - 성공률
+  - 연속 실패 횟수
+  - 미니 차트
+- ⚙️ 설정: 우선순위/그룹 변경
+- ▼ 최소화: 작은 아이콘으로 축소
+
+**최소화된 IP 영역:**
+
+- 최소화된 IP 아이콘 표시
+- 클릭 시 원래 크기로 복원
+- ▲ 최소화 버튼: 아이콘들 숨기기/표시
+
+#### 4.3.3 알림 기록
+
+**필터:**
+
+- 타입: 전체/타임아웃/복구
+- 날짜: 오늘/어제/최근 7일/최근 30일/전체
+
+**테이블:**
+
+```
+시간      | 타입    | IP 이름      | IP 주소      | 날짜
+14:30:25 | timeout | Google DNS  | 8.8.8.8     | 2024-02-01
+14:35:10 | recovery| Google DNS  | 8.8.8.8     | 2024-02-01
+```
+
+#### 4.3.4 장애 현황
+
+**필터:**
+
+- 상태: 전체/진행중/복구완료
+- 날짜: 오늘/어제/최근 7일/최근 30일/전체
+
+**테이블:**
+
+```
+시작 시간         | IP 이름     | IP 주소   | 상태    | 지속 시간 | 종료 시간
+2024-02-01 14:30 | Google DNS | 8.8.8.8  | 복구완료 | 4분 45초  | 2024-02-01 14:35
+```
+
+### 4.4 커스텀 알림 창
+
+**특징:**
+
+- Outlook 스타일 디자인
+- 화면 우하단 표시 (트레이 아이콘 가리지 않음)
+- 5초 후 자동 닫힘
+- 클릭 시 즉시 닫힘
+- 최대 5개 동시 표시 (자동 정렬)
+
+**알림 조건:**
+
+- 타임아웃: 연속 3회 실패 시
+- 복구: 오프라인 → 온라인 전환 시
+
+**알림 제어:**
+
+- 트레이 메뉴에서 활성화/비활성화
+- 비활성화 시 현재 표시된 알림 모두 닫힘
+
+### 4.5 설정 관리
+
+#### 4.5.1 IP 추가/수정
+
+1. `config/ping_config.ini` 편집
+2. 트레이 메뉴 → "설정 다시 불러오기"
+3. 자동으로 새 IP 모니터링 시작
+
+#### 4.5.2 포트 변경
+
+1. 트레이 메뉴 → "서버 포트 변경"
+2. 새 포트 입력 (8080-8099)
+3. 자동 재시작
+
+#### 4.5.3 데이터 초기화
+
+- `data/` 폴더 삭제 후 재실행
+- 알림/장애 로그만 초기화: 해당 JSON 파일 삭제
+
 ---
 
-### 2. 통합 설정 UI
-**대시보드에서 모든 설정을 관리할 수 있습니다.**
+## 5. 설정 파일 상세
 
-**접근:** IP 비교 타임라인 그래프 우측 상단 ⚙️ 버튼 클릭
+### 5.1 ping_config.ini (공개 IP)
 
-#### 📊 Chart Settings 탭
-- IP별 표시/숨김 체크박스
+#### 5.1.1 기본 구조
 
-#### ⏱️ Group Thresholds 탭
-- 기본 임계값 설정
-- 7개 그룹별 장애 판정 시간 설정
-
-#### 📋 IP Group Management 탭
-- IP별 그룹 분류 (드롭다운)
-- 우선순위 설정 (P1~P5)
-
-**Empty State**: 데이터 없을 때 안내 메시지 표시
-
----
-
-### 3. IP 그룹 및 우선순위
-**IP를 그룹으로 분류하고 중요도를 설정합니다.**
-
-**7개 그룹:**
-- 🖥️ 서버
-- 🌐 네트워크
-- 🛡️ 방화벽
-- 🗄️ 데이터베이스
-- 🌐 웹서버
-- 💾 스토리지
-- 📦 기타
-
-**우선순위 레벨:**
-- P1 (최고) ~ P5 (최저)
-
-**설정 파일:**
 ```ini
-[IPGroups]
-192.168.0.1=네트워크,1
-10.0.0.5=서버,1
+[Settings]
+NotificationsEnabled=1
+NotificationCooldown=300
+NotifyOnTimeout=1
+NotifyOnRecovery=1
+ConsecutiveFailures=3
+OutageThreshold=5
+
+[Targets]
+8.8.8.8,Google DNS,1,DNS
+1.1.1.1,Cloudflare DNS,1,DNS
+208.67.222.222,OpenDNS,2,DNS
 ```
 
----
+#### 5.1.2 Settings 섹션
 
-### 4. 트레이 메뉴 개선
+| 키                     | 설명                | 기본값 | 범위             |
+| ---------------------- | ------------------- | ------ | ---------------- |
+| `NotificationsEnabled` | 알림 활성화         | 1      | 0=비활성, 1=활성 |
+| `NotificationCooldown` | 알림 쿨다운 (초)    | 300    | 60-3600          |
+| `NotifyOnTimeout`      | 타임아웃 알림       | 1      | 0/1              |
+| `NotifyOnRecovery`     | 복구 알림           | 1      | 0/1              |
+| `ConsecutiveFailures`  | 알림 실패 임계값    | 3      | 1-10             |
+| `OutageThreshold`      | 장애 인정 시간 (분) | 5      | 1-60             |
 
-**새로운 메뉴:**
+#### 5.1.3 Targets 섹션
+
+**형식:**
+
 ```
-├─ 시작/일시정지
-├─ 브라우저 열기
-├─ ─────────────
-├─ ☑ 알림 활성화
-├─ ─────────────
-├─ 설정 불러오기  ⭐ NEW
-├─ 포트 변경...
-└─ 종료
-```
-
-#### 설정 불러오기
-- 실행 중 `ping_config.ini` / `int_config.ini` 수정 후
-- 프로그램 재시작 없이 설정 다시 로드
-- IP 추가/삭제/변경 즉시 반영
-
----
-
-### 5. 빌드 스크립트 개선
-
-**build.bat 새 기능:**
-```
-[0/5] 프로세스 체크 및 자동 종료
-[1/5] 컴파일
-[2/5] 파일 체크 (상세 표시)
-[3/5] 빌드 완료
-[4/5] 선택:
-  1. Run program
-  2. Create deployment package
-  3. Run with console (debug mode)  ⭐ NEW
-  4. Exit
+IP주소,이름,우선순위,그룹
 ```
 
-**디버그 모드:**
-- 콘솔 창에 모든 메시지 출력
-- 오류 진단 용이
-- `-mwindows` 플래그 제거
+**예제:**
 
----
-
-### 6. 브라우저 모니터링 (실험적)
-
-**별도 모듈로 분리:**
-- `browser_monitor.h/c` - 브라우저 프로세스 추적
-- `BROWSER_CLOSE_DETECTION.md` - 완전 가이드
-
-**현재 상태:** 안정성 문제로 비활성화
-- 추후 재활성화 가능
-
----
-
-### 7. Chart.js 로딩 개선
-
-**CDN 직접 로드:**
-```html
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+```ini
+8.8.8.8,Google DNS,1,DNS
+192.168.1.1,Gateway,1,Network
+10.0.0.100,Web Server,2,Servers
 ```
 
-**장점:**
-- 설치 불필요
-- 항상 최신 버전
+**필드 설명:**
 
-**오프라인 사용:** `CHART_INSTALL.md` 참조
+- **IP주소**: IPv4 주소
+- **이름**: 표시 이름 (공백 가능)
+- **우선순위**: 1=높음, 2=보통, 3=낮음
+- **그룹**: 그룹 이름 (선택사항)
 
----
+### 5.2 int_config.ini (내부 IP)
 
-### 8. 알림 개선
+#### 5.2.1 용도
 
-**불필요한 알림 제거:**
-- ❌ "설정 불러오기 완료" 제거
-- ❌ "알림 활성화" 제거
+- 내부 네트워크 IP 분리 관리
+- 보안상 공개 설정과 분리
 
-**유지되는 알림:**
-- ⚠️ 네트워크 타임아웃
-- ✅ 네트워크 복구
+#### 5.2.2 형식
 
-**트레이 메뉴에서 On/Off 가능**
+```ini
+[Targets]
+192.168.1.1,Router,1,Network
+192.168.1.10,NAS,2,Storage
+10.0.0.50,Database Server,1,Database
+```
 
----
+**주의:**
 
-## 💡 사용 팁
+- Settings 섹션 없음 (ping_config.ini 공유)
+- Targets 섹션만 사용
 
-### 장애 관리
-- 중요한 서버는 임계값을 짧게 (2-3분)
-- 일반 장비는 기본값 (5분) 사용
-- `outage_log.json`을 정기적으로 분석
+### 5.3 설정 적용 방법
 
-### 설정 UI
-- 대시보드에서 직접 수정 가능
-- 변경 후 "Save" 버튼 (향후 구현 예정)
-- 현재는 `ping_config.ini` 직접 수정
+#### 5.3.1 실시간 적용
 
-### 설정 불러오기
-- IP 추가/삭제 후 바로 적용
-- 프로그램 재시작 불필요
-- 브라우저 새로고침 (F5) 필요
+```
+1. 설정 파일 수정
+2. 저장
+3. 트레이 메뉴 → "설정 다시 불러오기"
+```
 
----
+#### 5.3.2 재시작 필요 없음
 
-## 알려진 제한사항
-
-1. **설정 UI 저장 기능**
-   - 현재 읽기 전용
-   - 저장 API 구현 예정
-
-2. **브라우저 자동 종료**
-   - 안정성 문제로 비활성화
-   - 수동 종료 필요 (트레이 메뉴)
-
-3. **Chart.js**
-   - CDN 사용 (인터넷 필요)
-   - 오프라인: 로컬 파일 다운로드 필요
-
-4. **용량** - 최대 50개 IP 모니터링 가능
+- 모든 설정은 런타임 리로드 가능
+- IP 추가/삭제 즉시 반영
 
 ---
 
-## 📊 성능 개선
+## 6. 문제 해결
 
-- 모듈화된 코드 구조
-- 파일 I/O 최적화 (원자적 쓰기)
-- 메모리 관리 개선
+### 6.1 컴파일 오류
+
+#### 6.1.1 "gcc: command not found"
+
+**원인**: MinGW 미설치 또는 PATH 미설정
+**해결:**
+
+```cmd
+where gcc
+```
+
+출력 없으면:
+
+1. MinGW 설치 확인
+2. 환경 변수 PATH에 `C:\mingw64\bin` 추가
+3. 새 CMD 창 열기
+
+#### 6.1.2 "undefined reference to ..."
+
+**원인**: 링킹 라이브러리 누락
+**해결:**
+
+- `-lgdi32` 추가 (CreateFontW 오류)
+- `-lws2_32` 추가 (Winsock 오류)
+- `-lshlwapi` 추가 (PathRemoveFileSpecW 오류)
+
+#### 6.1.3 "multiple definition of ..."
+
+**원인**: 백업 파일이나 중복 파일 존재
+**해결:**
+
+```cmd
+del main\*_backup.c
+del main\*.o
+```
+
+### 6.2 실행 오류
+
+#### 6.2.4 "필수 파일 누락"
+
+**원인**: web 폴더 또는 CSS 파일 없음
+**해결:**
+
+1. `web/graph.html` 존재 확인
+2. `web/css/*.css` (8개 파일) 확인
+3. `web/chart.umd.min.js` 확인
+   - 없으면 `DOWNLOAD_CHARTJS.bat` 실행
+
+#### 6.2.5 "HTTP 서버 시작 실패"
+
+**원인**: 포트 8080-8099 모두 사용 중
+**해결:**
+
+```cmd
+netstat -ano | findstr :8080
+taskkill /PID <PID> /F
+```
+
+#### 6.2.6 "설정 파일에 IP가 없습니다"
+
+**원인**: ping_config.ini 또는 int_config.ini에 [Targets] 섹션 없음
+**해결:**
+
+```ini
+[Targets]
+8.8.8.8,Google DNS
+```
+
+최소 1개 IP 추가
+
+### 6.3 웹 대시보드 오류
+
+#### 6.3.1 차트가 로딩되지 않음
+
+**원인**: Chart.js 파일 없음
+**해결:**
+
+```cmd
+DOWNLOAD_CHARTJS.bat
+```
+
+→ `web/chart.umd.min.js` 생성 확인 (205KB)
+
+#### 6.3.2 데이터가 표시되지 않음
+
+**원인**: data 폴더 없음 또는 권한 문제
+**해결:**
+
+```cmd
+mkdir data
+```
+
+관리자 권한으로 실행
+
+#### 6.3.3 CSS가 깨짐
+
+**원인**: CSS 파일 경로 오류
+**해결:**
+
+- 브라우저 개발자 도구 (F12) → Network 탭 확인
+- 404 오류 파일 확인
+- `web/css/` 폴더에 8개 CSS 파일 모두 있는지 확인
+
+### 6.4 알림 오류
+
+#### 6.4.1 알림창이 나타나지 않음
+
+**원인**: 알림 비활성화 또는 임계값 미도달
+**해결:**
+
+1. 트레이 메뉴 → "알림 활성화" 체크 확인
+2. `ping_config.ini`:
+
+```ini
+ConsecutiveFailures=1  (테스트용)
+```
+
+#### 6.4.2 알림창이 무한 로딩
+
+**원인**: 폰트 생성 오류 (v2.6에서 수정됨)
+**해결:**
+
+- 최신 버전 사용
+- 또는 `-lgdi32` 링킹 확인
+
+#### 6.4.3 알림창이 트레이 아이콘 가림
+
+**원인**: 구버전 사용 (v2.6 이전)
+**해결:**
+
+- v2.6 이상 업그레이드 (커스텀 알림 창)
+
+### 6.5 성능 문제
+
+#### 6.5.1 CPU 사용률 높음
+
+**원인**: IP 개수 과다 또는 업데이트 간격 짧음
+**해결:**
+
+- IP 개수 50개 이하 권장
+- 업데이트 간격 1초 권장 (현재 기본값)
+
+#### 6.5.2 메모리 누수
+
+**원인**: 차트 인스턴스 미정리
+**해결:**
+
+- 브라우저 새로고침 (F5)
+- 프로그램 재시작
 
 ---
 
-## 🔮 향후 계획 (v2.7)
+## 7. 버전 변경 이력
 
-- [ ] 설정 UI 저장 기능 구현
-- [ ] 브라우저 자동 종료 안정화
-- [ ] 장애 통계 및 리포트
-- [ ] 이메일 알림 (SMTP)
-- [ ] Telegram 봇 연동
-- [ ] 다중 사용자 지원
+### v2.6 (2025-02-01)
+
+#### 7.1 주요 신규 기능
+
+**커스텀 알림 시스템**
+
+- Outlook 스타일 알림 창
+- 트레이 아이콘을 가리지 않는 위치 (화면 우하단)
+- 부드러운 페이드 인/아웃 애니메이션
+- 5초 자동 닫힘 또는 클릭 시 즉시 닫힘
+- 최대 5개 동시 표시, 자동 정렬
+- 메인 스레드 PostMessage 방식으로 무한 로딩 문제 해결
+
+**최소화 기능 개선**
+
+- 최상단 헤더 최소화 버튼 제거
+- IP 비교 타임라인 개별 최소화 (차트만 숨김)
+- 최소화된 IP 영역 개별 최소화 (아이콘만 숨김)
+- 서서히 나타나고 숨기는 애니메이션 (0.4초 ease-in-out)
+- 버튼 회전 효과 (180도 회전)
+- localStorage 상태 저장
+
+**배포 시스템**
+
+- build.bat 배포 기능 추가 (옵션 4)
+- data 폴더 자동 생성
+- Chart.js 포함
+- 압축 파일 자동 생성
+- README 자동 생성 제거 (요청에 따라)
+
+#### 7.2 버그 수정
+
+**컴파일 오류**
+
+- `-lgdi32` 라이브러리 누락으로 CreateFontW 에러 → 수정
+- 중복 링킹 문제 (module_network.o 중복) → 제거
+
+**알림 시스템**
+
+- 알림창 무한 로딩 (매번 폰트 생성) → 전역 폰트 캐싱
+- 알림창 배경 흰색 표시 → WM_ERASEBKGND 처리 추가
+- 알림 비활성화 시 창 안 닫힘 → CleanupNotificationSystem 호출
+- 스레드 안전성 문제 → PostMessage 방식 전환
+
+**차트 로딩**
+
+- 배포 파일에서 Chart.js 미포함 → build.bat 수정
+- data 폴더 미생성 → 배포 패키지에 빈 폴더 추가
+
+**경로 문제**
+
+- exe 위치와 data 경로 불일치 → PathRemoveFileSpecW 단순화
+- main 폴더 감지 로직 복잡 → 제거
+
+#### 7.3 아키텍처 개선
+
+**모듈화**
+
+- notification.c/h 분리 (커스텀 알림 전용)
+- NotificationWindow 구조체 도입
+- NotificationRequest 구조체 (PostMessage 전달용)
+
+**메모리 관리**
+
+- 폰트 전역 캐싱 (g_titleFont, g_messageFont)
+- NotificationRequest 동적 할당/해제
+
+**스레드 안전성**
+
+- WM_SHOW_NOTIFICATION 메시지 추가
+- ProcessShowNotification 메인 스레드 처리
+- ShowCustomNotification에서 PostMessage 호출
+
+#### 7.4 UI/UX 개선
+
+**최소화 버튼 위치**
+
+- IP 비교 타임라인: 설정 버튼 오른쪽 (가장 우측 끝)
+- 최소화된 IP 영역: 카운트 오른쪽 (가장 우측 끝)
+
+**애니메이션**
+
+```css
+transition:
+  max-height 0.4s ease-in-out,
+  opacity 0.4s ease-in-out;
+```
+
+**버튼 스타일**
+
+```css
+.minimize-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+```
+
+#### 7.5 문서화
+
+**추가된 문서**
+
+- `DOCUMENTATION_v2.6.md` (완전 문서)
+- `GRAPH_HTML_SUMMARY.md` (graph.html 구조)
+- 섹션별 상세 가이드
+
+#### 7.6 알려진 제한사항
+
+- Windows 전용 (Linux/macOS 미지원)
+- IPv4만 지원 (IPv6 미지원)
+- 최대 IP 개수: 약 100개 (성능 고려)
+- 브라우저 자동 닫기 기능 비활성화 (사용자 편의)
+
+#### 7.7 다음 버전 계획 (v2.7)
+
+**예정 기능**
+
+- 통계 분석 페이지
+- 장기 데이터 보관 (CSV 내보내기)
+- 이메일/SMS 알림 (SMTP/API)
+- 다국어 지원 (영어)
+- 테마 커스터마이징
+
+**개선 계획**
+
+- IOCP 비동기 I/O (대규모 모니터링)
+- WebSocket 실시간 통신
+- SQLite 데이터 저장
+- RESTful API 확장
 
 ---
 
-**버전:** v2.6  
-**릴리스 날짜:** 2026-01-30  
+## 부록
+
+### A. 라이브러리 의존성
+
+```
+• ws2_32.lib     - Winsock 2 (네트워크)
+• iphlpapi.lib   - IP Helper API (ICMP)
+• shlwapi.lib    - Shell Light-weight Utility (경로)
+• shell32.lib    - Shell API (브라우저 오픈)
+• ole32.lib      - OLE (WebView2)
+• oleaut32.lib   - OLE Automation
+• uuid.lib       - UUID 생성
+• gdi32.lib      - GDI (폰트, 그래픽)
+```
+
+### B. 포트 번호 범위
+
+```
+8080 - 기본 포트
+8081 - 8099 - 자동 탐색 범위
+```
+
+### C. 파일 확장자
+
+```
+.c    - C 소스 코드
+.h    - 헤더 파일
+.o    - 오브젝트 파일 (컴파일 중간 산출물)
+.exe  - 실행 파일
+.ini  - 설정 파일
+.json - 데이터 파일
+.html - 웹 페이지
+.css  - 스타일시트
+.js   - JavaScript
+.md   - 마크다운 문서
+.bat  - 배치 스크립트
+```
+
+### D. 기본 키보드 단축키
+
+```
+F5          - 대시보드 새로고침
+F11         - 전체 화면
+F12         - 개발자 도구
+Ctrl+F5     - 캐시 무시 새로고침
+Alt+F4      - 브라우저 닫기 (프로그램은 계속 실행)
+```
+
+### E. 참고 자료
+
+- GitHub Repository: https://github.com/zzangae/pings
+- Chart.js Documentation: https://www.chartjs.org/docs/latest/
+- MinGW-w64: https://www.mingw-w64.org/
+- Winsock API: https://docs.microsoft.com/en-us/windows/win32/winsock/
+
+---
+
+**문서 버전**: v2.6
+**최종 수정일**: 2025-02-01
