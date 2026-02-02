@@ -129,6 +129,25 @@
             color: #fff;
             font-weight: 600;
         }
+        
+        /* 모달 스크롤 방지 (v2.7) */
+        .modal.active {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+        
+        .modal-content {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        
+        .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
     </style>
 
 </head>
@@ -878,14 +897,14 @@
 
             if (closeChartSettings) {
                 closeChartSettings.addEventListener('click', () => {
-                    chartSettingsModal.classList.remove('active');
+                    closeChartSettingsModal();
                 });
             }
 
             if (chartSettingsModal) {
                 chartSettingsModal.addEventListener('click', (e) => {
                     if (e.target.id === 'chartSettingsModal') {
-                        chartSettingsModal.classList.remove('active');
+                        closeChartSettingsModal();
                     }
                 });
             }
@@ -905,7 +924,7 @@
             if (saveChartSettings) {
                 saveChartSettings.addEventListener('click', () => {
                     saveVisibleIPsState();
-                    chartSettingsModal.classList.remove('active');
+                    closeChartSettingsModal();
                 });
             }
         }
@@ -1250,6 +1269,12 @@
             
             populateIPCheckboxList(currentData.targets);
             document.getElementById('chartSettingsModal').classList.add('active');
+            document.body.style.overflow = 'hidden';  // 배경 스크롤 방지
+        }
+        
+        function closeChartSettingsModal() {
+            document.getElementById('chartSettingsModal').classList.remove('active');
+            document.body.style.overflow = '';  // 배경 스크롤 복원
         }
 
         function populateIPCheckboxList(targets) {
@@ -1540,11 +1565,13 @@
             createModalChart(target, index);
             
             document.getElementById('detailModal').classList.add('active');
+            document.body.style.overflow = 'hidden';  // 배경 스크롤 방지
         }
 
         // Close Detail Modal
         function closeDetailModal() {
             document.getElementById('detailModal').classList.remove('active');
+            document.body.style.overflow = '';  // 배경 스크롤 복원
             if (modalChart) {
                 modalChart.destroy();
                 modalChart = null;
