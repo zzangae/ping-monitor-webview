@@ -164,8 +164,8 @@ function initTimeRangeRadios() {
     const timeRangeRadios = document.querySelectorAll('input[name="timeRange"]');
     if (timeRangeRadios.length === 0) return;
     
-    // 저장된 시간 범위 복원
-    const savedRange = localStorage.getItem('timelineRange');
+    // 저장된 시간 범위 복원 (sessionStorage - 재시작 시 리셋됨)
+    const savedRange = sessionStorage.getItem('timelineRange');
     if (savedRange) {
         selectedTimeRange = parseInt(savedRange);
         const savedRadio = document.querySelector(`input[name="timeRange"][value="${savedRange}"]`);
@@ -176,6 +176,7 @@ function initTimeRangeRadios() {
         updateTimelineRangeLabel(selectedTimeRange);
     } else {
         // 기본값 1분 선택
+        selectedTimeRange = 60;
         const defaultRadio = document.querySelector('input[name="timeRange"][value="60"]');
         if (defaultRadio) {
             defaultRadio.checked = true;
@@ -187,7 +188,7 @@ function initTimeRangeRadios() {
     timeRangeRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
             selectedTimeRange = parseInt(e.target.value);
-            localStorage.setItem('timelineRange', selectedTimeRange.toString());
+            sessionStorage.setItem('timelineRange', selectedTimeRange.toString());
             console.log('타임라인 범위 변경:', selectedTimeRange, '초');
             
             // 타임라인 제목 라벨 업데이트

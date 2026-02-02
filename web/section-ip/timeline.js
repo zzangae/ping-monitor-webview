@@ -201,16 +201,28 @@ function generateTimeLabels(timeRangeSeconds) {
  */
 function getDisplayData(history, timeRangeSeconds) {
     const totalPoints = Math.min(60, timeRangeSeconds);  // 최대 60개 포인트
+    
+    // 히스토리가 없으면 즉시 빈 배열 반환
+    if (!history || history.length === 0) {
+        return Array(totalPoints).fill(null);
+    }
+    
     const interval = Math.floor(timeRangeSeconds / totalPoints);
     
-    // 필요한 데이터 포인트 수
-    const neededPoints = timeRangeSeconds;
+    // 실제 사용할 데이터 범위 (최대 timeRangeSeconds개, 하지만 있는 만큼만)
+    const availableHistory = history.length > timeRangeSeconds 
+        ? history.slice(-timeRangeSeconds) 
+        : history;
     
-    // 히스토리가 충분하지 않으면 있는 만큼만 사용
-    const availableHistory = history.slice(-neededPoints);
-    
-    if (availableHistory.length === 0) {
-        return Array(totalPoints).fill(null);
+    // 데이터가 너무 적으면 있는 만큼만 표시
+    if (availableHistory.length < totalPoints) {
+        // 데이터가 적을 때는 단순하게 처리
+        const result = Array(totalPoints).fill(null);
+        const startPos = totalPoints - availableHistory.length;
+        for (let i = 0; i < availableHistory.length; i++) {
+            result[startPos + i] = availableHistory[i] > 0 ? availableHistory[i] : null;
+        }
+        return result;
     }
     
     // 샘플링하여 60개 이하의 포인트로 줄이기
@@ -248,7 +260,7 @@ function getDisplayData(history, timeRangeSeconds) {
  */
 function setTimelineRange(seconds) {
     selectedTimeRange = seconds;
-    localStorage.setItem('selectedTimeRange', seconds);
+    sessionStorage.setItem('selectedTimeRange', seconds);
     
     // 레이블 업데이트
     updateTimelineRangeLabel();
@@ -285,13 +297,17 @@ function formatTimeRange(seconds) {
 
 /**
  * 저장된 시간 범위 로드
+ * sessionStorage 사용: 브라우저 탭/창이 열려있는 동안만 유지
+ * 프로그램 재시작 시에는 1분(60초)으로 시작
  */
 function loadTimelineRange() {
-    const saved = localStorage.getItem('selectedTimeRange');
+    const saved = sessionStorage.getItem('selectedTimeRange');
     if (saved) {
         selectedTimeRange = parseInt(saved);
-        updateTimelineRangeLabel();
+    } else {
+        selectedTimeRange = 60;  // 기본 1분
     }
+    updateTimelineRangeLabel();
 }
 
 /**
