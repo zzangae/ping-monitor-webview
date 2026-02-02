@@ -85,6 +85,104 @@
             min-width: 100px;
         }
         
+        /* 임계값 입력 + 슬라이더 그룹 */
+        .threshold-input-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .threshold-input-group .settings-input {
+            width: 100px;
+            flex-shrink: 0;
+        }
+        
+        .threshold-input-group .threshold-slider {
+            flex: 1;
+        }
+        
+        /* 테이블 내 슬라이더 */
+        .threshold-table input[type="range"] {
+            width: 100%;
+            min-width: 80px;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, #3a3f5c, #4a5080);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .threshold-table input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
+        }
+        
+        .threshold-table input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .threshold-table input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
+        }
+        
+        /* 기본 임계값용 슬라이더 */
+        .threshold-slider {
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, #3a3f5c, #4a5080);
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .threshold-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
+        }
+        
+        .threshold-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .threshold-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
+        }
+        
         .modal-content {
             max-height: 85vh;
             overflow: hidden;
@@ -292,27 +390,22 @@
                 <!-- Tab 3: 그룹별 임계값 -->
                 <div class="settings-tab-content" id="settings-thresholds">
                     <div class="settings-scroll-box">
-                        <!-- Empty State Guide -->
-                        <div id="thresholdEmptyState" class="empty-state" style="display: block;">
-                            <div style="font-size: 48px; margin-bottom: 16px;">⏱️</div>
-                            <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">그룹별 임계값 설정</h3>
-                            <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
-                                각 그룹별로 장애 판정 시간을 커스터마이즈할 수 있습니다.<br>
-                                IP가 설정된 시간(초) 동안 연속으로 다운되면 장애로 기록됩니다.<br><br>
-                                <strong>예시:</strong> 서버 그룹 = 180초 → 3분간 다운 시 장애 기록
-                            </p>
-                        </div>
-                        
                         <!-- Content -->
-                        <div id="thresholdContent" style="display: none;">
+                        <div id="thresholdContent">
                             <div class="settings-section">
                                 <div class="settings-section-title">
                                     ⚡ 기본 임계값
                                 </div>
                                 <div class="settings-form-group">
                                     <label class="settings-label">장애 판정 임계값 (초)</label>
-                                    <input type="number" class="settings-input" id="defaultThreshold" 
-                                           value="300" min="30" max="3600" step="30">
+                                    <div class="threshold-input-group">
+                                        <input type="number" class="settings-input" id="defaultThreshold" 
+                                               value="300" min="30" max="3600" step="10"
+                                               oninput="syncThresholdSlider('defaultThreshold')">
+                                        <input type="range" class="threshold-slider" id="defaultThreshold_slider"
+                                               value="300" min="30" max="600" step="10"
+                                               oninput="syncThresholdInput('defaultThreshold')">
+                                    </div>
                                     <div class="settings-help">
                                         IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
                                     </div>
@@ -328,43 +421,51 @@
                                         <tr>
                                             <th>그룹</th>
                                             <th>임계값 (초)</th>
+                                            <th>슬라이더</th>
                                             <th>설명</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <tr>
                                             <td>🖥️ 서버</td>
-                                            <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_서버')"></td>
+                                            <td><input type="range" id="thresh_서버_slider" value="180" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_서버')"></td>
                                             <td class="settings-help">서버: 3분 (180초)</td>
                                         </tr>
                                         <tr>
                                             <td>🌐 네트워크</td>
-                                            <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_네트워크')"></td>
+                                            <td><input type="range" id="thresh_네트워크_slider" value="300" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_네트워크')"></td>
                                             <td class="settings-help">네트워크: 5분 (300초)</td>
                                         </tr>
                                         <tr>
                                             <td>🛡️ 방화벽</td>
-                                            <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_방화벽')"></td>
+                                            <td><input type="range" id="thresh_방화벽_slider" value="120" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_방화벽')"></td>
                                             <td class="settings-help">방화벽: 2분 (120초)</td>
                                         </tr>
                                         <tr>
                                             <td>💾 데이터베이스</td>
-                                            <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_데이터베이스')"></td>
+                                            <td><input type="range" id="thresh_데이터베이스_slider" value="180" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_데이터베이스')"></td>
                                             <td class="settings-help">데이터베이스: 3분 (180초)</td>
                                         </tr>
                                         <tr>
                                             <td>🌍 웹서버</td>
-                                            <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_웹서버')"></td>
+                                            <td><input type="range" id="thresh_웹서버_slider" value="240" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_웹서버')"></td>
                                             <td class="settings-help">웹서버: 4분 (240초)</td>
                                         </tr>
                                         <tr>
                                             <td>📦 스토리지</td>
-                                            <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_스토리지')"></td>
+                                            <td><input type="range" id="thresh_스토리지_slider" value="300" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_스토리지')"></td>
                                             <td class="settings-help">스토리지: 5분 (300초)</td>
                                         </tr>
                                         <tr>
                                             <td>🔧 기타</td>
-                                            <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
+                                            <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="10" oninput="syncThresholdSlider('thresh_기타')"></td>
+                                            <td><input type="range" id="thresh_기타_slider" value="300" min="30" max="600" step="10" oninput="syncThresholdInput('thresh_기타')"></td>
                                             <td class="settings-help">기타: 5분 (300초)</td>
                                         </tr>
                                     </tbody>

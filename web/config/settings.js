@@ -23,6 +23,11 @@ function openChartSettings() {
     populateIPCheckboxList(currentData.targets);
     document.getElementById('chartSettingsModal').classList.add('active');
     document.body.style.overflow = 'hidden';  // 배경 스크롤 방지
+    
+    // 마우스 휠 이벤트 초기화 (그룹별 임계값 탭용)
+    setTimeout(() => {
+        initThresholdWheelEvents();
+    }, 100);
 }
 
 /**
@@ -201,11 +206,93 @@ function initTimeRangeRadios() {
 // ============================================
 
 /**
+ * 슬라이더 값을 숫자 입력 필드에 동기화
+ * @param {string} baseId - 기본 ID (예: 'thresh_서버')
+ */
+function syncThresholdInput(baseId) {
+    const slider = document.getElementById(baseId + '_slider');
+    const input = document.getElementById(baseId);
+    if (slider && input) {
+        input.value = slider.value;
+    }
+}
+
+/**
+ * 숫자 입력 필드 값을 슬라이더에 동기화
+ * @param {string} baseId - 기본 ID (예: 'thresh_서버')
+ */
+function syncThresholdSlider(baseId) {
+    const input = document.getElementById(baseId);
+    const slider = document.getElementById(baseId + '_slider');
+    if (input && slider) {
+        // 슬라이더 범위 내로 제한 (30~600)
+        let value = parseInt(input.value) || 300;
+        value = Math.max(30, Math.min(600, value));
+        slider.value = value;
+    }
+}
+
+/**
+ * 모든 슬라이더를 입력 필드 값과 동기화
+ */
+function syncAllThresholdSliders() {
+    const ids = ['defaultThreshold', 'thresh_서버', 'thresh_네트워크', 'thresh_방화벽', 
+                 'thresh_데이터베이스', 'thresh_웹서버', 'thresh_스토리지', 'thresh_기타'];
+    ids.forEach(id => syncThresholdSlider(id));
+}
+
+/**
+ * 숫자 입력 필드에 마우스 휠 이벤트 추가
+ * 휠 위로: 값 증가, 휠 아래로: 값 감소
+ */
+function initThresholdWheelEvents() {
+    const inputs = document.querySelectorAll('#settings-thresholds input[type="number"]');
+    
+    inputs.forEach(input => {
+        // 이미 이벤트가 바인딩되어 있으면 스킵
+        if (input.dataset.wheelBound) return;
+        input.dataset.wheelBound = 'true';
+        
+        input.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const step = parseInt(this.step) || 10;
+            const min = parseInt(this.min) || 30;
+            const max = parseInt(this.max) || 3600;
+            let value = parseInt(this.value) || 300;
+            
+            if (e.deltaY < 0) {
+                // 휠 위로 - 값 증가
+                value = Math.min(value + step, max);
+            } else {
+                // 휠 아래로 - 값 감소
+                value = Math.max(value - step, min);
+            }
+            
+            this.value = value;
+            
+            // 슬라이더 동기화
+            const baseId = this.id;
+            syncThresholdSlider(baseId);
+            
+            // 시각적 피드백
+            this.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+            setTimeout(() => {
+                this.style.backgroundColor = '';
+            }, 150);
+        }, { passive: false });
+    });
+    
+    console.log('임계값 마우스 휠 이벤트 초기화:', inputs.length, '개 입력 필드');
+}
+
+/**
  * 임계값 설정 로드 (localStorage 우선)
  */
 async function loadThresholdSettings() {
-    const emptyState = document.getElementById('thresholdEmptyState');
-    const contentDiv = document.getElementById('thresholdContent');
+    // 마우스 휠 이벤트 초기화
+    initThresholdWheelEvents();
     
     // 먼저 localStorage에서 로드 시도
     const savedThresholds = localStorage.getItem('thresholdSettings');
@@ -228,10 +315,10 @@ async function loadThresholdSettings() {
                 }
             });
             
-            console.log('임계값 설정 로드 (localStorage):', thresholds);
+            // 슬라이더 동기화
+            syncAllThresholdSliders();
             
-            if (emptyState) emptyState.style.display = 'none';
-            if (contentDiv) contentDiv.style.display = 'block';
+            console.log('임계값 설정 로드 (localStorage):', thresholds);
             return;
         } catch (e) {
             console.error('localStorage 임계값 파싱 실패:', e);
@@ -282,22 +369,17 @@ async function loadThresholdSettings() {
                 }
             }
             
-            console.log('임계값 설정 로드 (서버)');
+            // 슬라이더 동기화
+            syncAllThresholdSliders();
             
-            // Show content, hide empty state
-            if (emptyState) emptyState.style.display = 'none';
-            if (contentDiv) contentDiv.style.display = 'block';
-        } else {
-            // No config found - show content with defaults
-            if (emptyState) emptyState.style.display = 'none';
-            if (contentDiv) contentDiv.style.display = 'block';
+            console.log('임계값 설정 로드 (서버)');
         }
     } catch (error) {
         console.error('Failed to load threshold settings:', error);
-        // Show content with defaults even on error
-        if (emptyState) emptyState.style.display = 'none';
-        if (contentDiv) contentDiv.style.display = 'block';
     }
+    
+    // 기본값에서도 슬라이더 동기화
+    syncAllThresholdSliders();
 }
 
 // ============================================
@@ -415,16 +497,8 @@ function initSettingsTabEvents() {
             
             // Load data for specific tabs
             if (tabId === 'thresholds') {
-                const emptyState = document.getElementById('thresholdEmptyState');
-                const contentDiv = document.getElementById('thresholdContent');
-                if (emptyState) emptyState.style.display = 'block';
-                if (contentDiv) contentDiv.style.display = 'none';
                 loadThresholdSettings();
             } else if (tabId === 'ipgroups') {
-                const emptyState = document.getElementById('ipgroupEmptyState');
-                const contentDiv = document.getElementById('ipgroupContent');
-                if (emptyState) emptyState.style.display = 'block';
-                if (contentDiv) contentDiv.style.display = 'none';
                 loadIPConfigTable();
             }
         });
