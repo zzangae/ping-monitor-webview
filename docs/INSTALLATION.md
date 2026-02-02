@@ -14,72 +14,99 @@
 
 ---
 
-**포함 내용:**
+## 📋 포함 내용
 
 - 시스템 요구사항
-- 개발 환경 설정
-- 컴파일 방법
+- MinGW 설치 방법
+- 빌드 방법 (build.bat)
+- 수동 컴파일
 - 배포 패키지 생성
 - 다른 PC에 설치
 
-### 사전 요구사항
+---
+
+## 💻 시스템 요구사항
+
+### 개발 환경
 
 - **OS**: Windows 10/11 (64-bit)
-- **컴파일러**: MinGW-w64 GCC (빌드 시에만 필요)
-- **브라우저**: Chrome, Edge, Firefox 등
+- **컴파일러**: MinGW-w64 GCC 14.2.0 이상
+- **RAM**: 2GB 이상
+- **디스크**: 100MB 이상
 
-### 개발 환경 설정
+### 런타임 요구사항
 
-1. **MinGW-w64 설치**
-
-   ```bash
-   # Windows에서 MSYS2 사용
-   pacman -S mingw-w64-x86_64-gcc
-   ```
-
-2. **저장소 클론**
-
-   ```bash
-   git clone https://github.com/zzangae/ping-monitor-webview.git
-   cd ping-monitor-webview
-   ```
-
-3. **Chart.js 다운로드**
-   - 다운로드: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js
-   - 저장 위치: 프로젝트 루트에 `chart.umd.min.js`로 저장
-
-4. **컴파일**
-
-   ```bash
-   build.bat
-   ```
-
-5. **실행**
-   - 옵션 1 선택: 프로그램 즉시 실행
-   - 옵션 2 선택: 배포 패키지 생성
+- **OS**: Windows 10/11
+- **브라우저**: Chrome, Edge, Firefox (최신 버전)
+- **권한**: 관리자 권한 (ICMP 핑 사용 시 권장)
+- **포트**: 8080-8099 중 1개 이상 사용 가능
 
 ---
 
-## 🔨 빌드 방법
+## 🔧 MinGW-w64 설치
 
-### 요구사항
+### 1. 다운로드
 
-- Windows 10 이상
-- MinGW-w64 (gcc)
+```
+https://github.com/niXman/mingw-builds-binaries/releases
 
-### MinGW-w64 설치
-
-```bash
-# https://www.mingw-w64.org/ 에서 다운로드
-# PATH 환경변수에 추가
-
-# 설치 확인
-gcc --version
+파일 선택:
+x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev0.7z
 ```
 
-### 빌드 실행
+```bash
+# Windows에서 MSYS2 사용
+pacman -S mingw-w64-x86_64-gcc
+```
+
+### 2. 압축 해제
+
+```batch
+# 권장 경로
+C:\mingw64\
+
+# 압축 해제 후 폴더 구조
+C:\mingw64\
+├── bin\          # gcc.exe, g++.exe 등
+├── include\
+├── lib\
+└── ...
+```
+
+**저장소 클론**
 
 ```bash
+git clone https://github.com/zzangae/ping-monitor-webview.git
+cd ping-monitor-webview
+```
+
+### 3. 환경 변수 설정
+
+**시스템 속성 → 고급 → 환경 변수**
+
+```
+변수 이름: Path
+값 추가: C:\mingw64\bin
+```
+
+### 4. 확인
+
+```batch
+# 새 CMD 창 열기
+gcc --version
+
+# 출력 예시:
+# gcc (x86_64-posix-seh-rev0, Built by MinGW-W64 project) 14.2.0
+```
+
+---
+
+## 🛠️ 빌드 방법
+
+### build.bat 사용 (권장)
+
+```batch
+cd ping_monitor_v26
 build.bat
 ```
 
@@ -95,170 +122,394 @@ gcc -o ping_monitor.exe ping_monitor_webview.c http_server.c -lws2_32 -liphlpapi
 2. **Create deployment package** - 배포 패키지 생성
 3. **Exit** - 종료
 
----
 
-## 배포 패키지 생성
-
-`PingMonitor` 폴더에 다음 파일들이 자동 복사됩니다:
+**메뉴 선택:**
 
 ```
-PingMonitor/
-├─ ping_monitor.exe
-├─ graph.html
-├─ chart.umd.min.js
-├─ ping_config.ini (샘플 생성 또는 복사)
-├─ int_config.ini (있는 경우 복사)
-├─ css/ (전체 복사)
-└─ README.txt
+========================================
+Ping Monitor v2.6 빌드 시스템
+========================================
+
+1. 컴파일 및 실행
+2. 컴파일만
+3. 디버그 모드 (콘솔 출력 + 로그 파일)
+4. 배포 패키지 생성
+5. 종료
+
+선택:
 ```
 
-### 다른 PC에 배포
+### 옵션 1: 컴파일 및 실행
 
-1. `PingMonitor` 폴더 전체를 압축
-2. 대상 PC에 복사 및 압축 해제
-3. **중요**: 영문 경로에 배치
-   - ✅ `C:\PingMonitor\`
-   - ✅ `D:\Tools\PingMonitor\`
-   - ❌ `C:\Downloads\_클라우드 내부 외부 모니터링\` (한글 경로 문제)
-4. `ping_monitor.exe` 실행
+```batch
+# 선택: 1
+# 동작:
+#   1. 기존 exe 삭제
+#   2. 소스 컴파일
+#   3. 링킹
+#   4. ping_monitor.exe 생성
+#   5. 자동 실행
+```
+
+### 옵션 2: 컴파일만
+
+```batch
+# 선택: 2
+# 동작:
+#   1. 기존 exe 삭제
+#   2. 소스 컴파일
+#   3. 링킹
+#   4. ping_monitor.exe 생성
+#   (자동 실행 안 함)
+```
+
+### 옵션 3: 디버그 모드
+
+```batch
+# 선택: 3
+# 동작:
+#   1. -mconsole 플래그로 컴파일
+#   2. 콘솔 창에 모든 출력 표시
+#   3. ping_monitor_debug.log 파일 생성
+#   4. 오류 진단 용이
+```
+
+**디버그 로그 예시:**
+
+```
+HTTP 서버 시작 시도 (포트: 8080)...
+HTTP 서버 시작 성공: http://localhost:8080
+설정 로드 완료: 총 5개 타겟
+Browser launched successfully
+알림: 활성화
+```
+
+### 옵션 4: 배포 패키지 생성
+
+```batch
+# 선택: 4
+# 동작:
+#   1. 컴파일 (옵션 2)
+#   2. PingMonitor_v2.6_Release 폴더 생성
+#   3. 필수 파일 복사
+#   4. ZIP 압축 파일 생성
+```
+
+**생성 파일:**
+
+```
+PingMonitor_v2.6_Release/      # 폴더
+PingMonitor_v2.6_Release.zip   # 압축 파일
+```
 
 ---
 
-#### 1. ping_config.ini (공개 IP)
+## 🔨 수동 컴파일
+
+### 전체 과정
+
+```batch
+cd main
+
+REM 1. 컴파일
+gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -mwindows
+gcc -c module\config.c -o module_config.o
+gcc -c module\network.c -o module_network.o
+gcc -c module\notification.c -o module_notification.o
+gcc -c module\port.c -o module_port.o
+gcc -c outage.c -o outage.o
+
+REM 2. 링킹
+gcc -o ping_monitor.exe ping_monitor_webview.o module_config.o module_network.o module_notification.o module_port.o outage.o module\tray.c http_server.c browser_monitor.c config_api.c -municode -mwindows -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
+
+REM 3. 루트로 이동
+move ping_monitor.exe ..
+
+REM 4. 오브젝트 파일 삭제
+del *.o
+```
+
+### 컴파일 플래그 설명
+
+| 플래그 | 설명 |
+|--------|------|
+| `-municode` | UNICODE 진입점 사용 (wWinMain) |
+| `-mwindows` | GUI 애플리케이션 (콘솔 창 숨김) |
+| `-mconsole` | 콘솔 애플리케이션 (디버그용) |
+| `-O2` | 최적화 레벨 2 |
+| `-g` | 디버그 심볼 포함 |
+
+### 링킹 라이브러리
+
+| 라이브러리 | 용도 |
+|------------|------|
+| `-lws2_32` | Winsock 2 (네트워크) |
+| `-liphlpapi` | IP Helper API (ICMP) |
+| `-lshlwapi` | Shell Light-weight Utility (경로) |
+| `-lshell32` | Shell API (브라우저 오픈) |
+| `-lole32` | OLE (WebView2) |
+| `-loleaut32` | OLE Automation |
+| `-luuid` | UUID 생성 |
+| `-lgdi32` | GDI (폰트, 그래픽) |
+
+---
+
+## 📥 Chart.js 다운로드
+
+### 자동 다운로드 (권장)
+
+```batch
+DOWNLOAD_CHARTJS.bat
+```
+
+**동작:**
+
+1. PowerShell로 Chart.js 다운로드
+2. `web/chart.umd.min.js` 저장
+3. 파일 크기 확인 (약 205KB)
+
+### 수동 다운로드
+
+```
+URL: https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js
+저장 위치: web/chart.umd.min.js
+```
+
+**확인:**
+
+```batch
+dir web\chart.umd.min.js
+
+# 출력 예시:
+# 2025-02-01  14:30           205,240 chart.umd.min.js
+```
+
+---
+
+## 📦 배포 패키지 생성
+
+### 1. build.bat로 생성 (권장)
+
+```batch
+build.bat
+# 선택: 4
+```
+
+### 2. 생성 내용
+
+```
+PingMonitor_v2.6_Release/
+├── ping_monitor.exe
+├── config/
+│   ├── ping_config.ini
+│   └── int_config.ini
+├── data/                 # 빈 폴더
+│   └── .gitkeep
+└── web/
+    ├── graph.html
+    ├── chart.umd.min.js
+    └── css/
+        └── (8개 CSS 파일)
+```
+
+### 3. 압축 파일
+
+```
+PingMonitor_v2.6_Release.zip  # PowerShell Compress-Archive로 생성
+```
+
+---
+
+## 💾 다른 PC에 설치
+
+### 1. 압축 파일 전송
+
+```batch
+# USB, 이메일, 네트워크 드라이브 등으로 전송
+PingMonitor_v2.6_Release.zip
+```
+
+### 2. 압축 해제
+
+**중요: 영문 경로에 배치**
+
+```batch
+# ✅ 올바른 경로
+C:\PingMonitor\
+D:\Tools\PingMonitor\
+
+# ❌ 잘못된 경로 (한글)
+C:\Downloads\핑_모니터\
+C:\프로그램\Ping Monitor\
+```
+
+### 3. 설정 파일 수정
+
+```batch
+# config/ping_config.ini 편집
+notepad config\ping_config.ini
+```
 
 ```ini
-[Settings]
-NotificationsEnabled=1
-
-# 공개 가능한 IP들
+[Targets]
 8.8.8.8,Google DNS
 1.1.1.1,Cloudflare DNS
-168.126.63.1,KT DNS
+192.168.0.1,Gateway
 ```
 
-#### 2. int_config.ini (내부 IP, 선택)
+### 4. 실행
 
-```ini
-# 내부/비공개 IP들
-192.168.1.100,내부 웹서버
-10.0.0.50,데이터베이스
-172.16.0.10,파일서버
+```batch
+# 더블클릭 또는 명령줄
+ping_monitor.exe
 ```
 
-### 특징
+**첫 실행 시 동작:**
 
-- **자동 병합**: 두 파일의 IP를 합쳐서 모니터링
-- **선택적**: int_config.ini가 없어도 정상 작동
-- **.gitignore**: int_config.ini는 Git에서 자동 제외
-- **예시 파일**: int_config.ini.example 제공
-
-### 사용 방법
-
-```bash
-# 1. 예시 파일 복사
-copy int_config.ini.example int_config.ini
-
-# 2. int_config.ini 편집하여 내부 IP 추가
-notepad int_config.ini
-
-# 3. 빌드 및 실행
-build.bat
-```
+1. HTTP 서버 시작 (포트 8080)
+2. 시스템 트레이 아이콘 생성
+3. 기본 브라우저 자동 오픈
+4. 모니터링 시작
 
 ---
 
-## 🚀 업그레이드 방법
+## 🔄 업그레이드
 
 ### v2.5에서 v2.6으로
 
-1. **기존 데이터 백업**
-   ```batch
-   copy ping_config.ini ping_config.ini.bak
-   copy notification_log.json notification_log.json.bak
-   ```
+#### 1. 기존 데이터 백업
 
-2. **새 파일 배치**
-   - v2.6 파일 압축 해제
-   - 기존 `ping_config.ini` 복사
+```batch
+copy config\ping_config.ini config\ping_config.ini.bak
+copy data\notification_log.json data\notification_log.json.bak
+```
 
-3. **설정 파일 수정**
-   ```ini
-   # ping_config.ini에 추가
-   [OutageDetection]
-   OutageThreshold=300
-   
-   [IPGroups]
-   # IP별 그룹과 우선순위 추가
-   ```
+#### 2. 새 파일 배치
 
-4. **프로그램 실행**
-   ```batch
-   ping_monitor.exe
-   ```
+```batch
+# v2.6 압축 해제
+# 기존 폴더에 덮어쓰기
+```
 
-5. **브라우저에서 확인**
-   - 장애 타임라인 탭 확인
-   - 설정 UI (⚙️) 확인
+#### 3. 설정 파일 확인
+
+```batch
+notepad config\ping_config.ini
+notepad config\int_config.ini
+```
+
+**v2.6 신규 섹션 (선택사항):**
+
+```ini
+[OutageDetection]
+OutageThreshold=300
+
+[IPGroups]
+8.8.8.8=DNS,1
+```
+
+#### 4. 프로그램 재시작
+
+```batch
+ping_monitor.exe
+```
+
+#### 5. 웹 대시보드 확인
+
+- 장애 현황 탭 확인
+- 설정 UI (⚙️ 버튼) 확인
+- 최소화 버튼 (▲) 확인
 
 ---
 
-### 로딩 과정
+## 🐛 빌드 문제 해결
 
+### "gcc: command not found"
+
+**원인:** MinGW 미설치 또는 PATH 미설정
+
+**해결:**
+
+```batch
+# 1. gcc 위치 확인
+where gcc
+
+# 2. 출력 없으면 PATH 추가
+set PATH=%PATH%;C:\mingw64\bin
+
+# 3. 새 CMD 창 열기
 ```
-==========================================
-설정 파일 로딩 시작
-==========================================
-설정 파일 읽는 중: ping_config.ini
-  ping_config.ini에서 타겟 로드 완료
-------------------------------------------
-설정 파일 읽는 중: int_config.ini
-  int_config.ini에서 타겟 로드 완료
-==========================================
-설정 로드 완료: 총 10개 타겟
-알림 설정: 활성화 (쿨다운: 60초, 연속실패: 3회)
-==========================================
+
+### "undefined reference to `CreateFontW'"
+
+**원인:** `-lgdi32` 라이브러리 누락
+
+**해결:**
+
+```batch
+# build.bat 확인
+# 링킹 명령에 -lgdi32 추가되어 있는지 확인
+```
+
+### "multiple definition of ..."
+
+**원인:** 중복 파일 또는 백업 파일
+
+**해결:**
+
+```batch
+cd main
+del *_backup.c
+del *.o
+```
+
+### "필수 파일 누락"
+
+**원인:** web 폴더 또는 CSS 파일 없음
+
+**해결:**
+
+```batch
+# 1. 필수 파일 확인
+dir web\graph.html
+dir web\css\*.css
+
+# 2. 없으면 GitHub에서 다운로드
+git clone https://github.com/zzangae/pings.git
 ```
 
 ---
 
-### 기본 사용
+## 빌드 성공 확인
 
-```bash
-# 실행
+### 1. 파일 생성 확인
+
+```batch
+dir ping_monitor.exe
+
+# 출력 예시:
+# 2025-02-01  14:30           150,513 ping_monitor.exe
+```
+
+### 2. 실행 테스트
+
+```batch
 ping_monitor.exe
 
-# 자동으로:
-# 1. HTTP 서버 시작 (localhost:8080)
-# 2. 브라우저 열림 (graph.html)
-# 3. 시스템 트레이 아이콘 표시
+# 예상 동작:
+# - 트레이 아이콘 생성
+# - 브라우저 자동 오픈
+# - 콘솔 메시지 (디버그 모드)
 ```
 
-### 시스템 트레이 메뉴
+### 3. 대시보드 접속
 
 ```
-우클릭 메뉴:
-├─ 모니터링 시작
-├─ 모니터링 중지
-├─ 브라우저 열기
-├─ 알림 켜기/끄기 ← 실시간 토글
-└─ 종료
+브라우저에서:
+http://localhost:8080/web/graph.html
 
-더블클릭:
-└─ 브라우저 열기
-```
-
-### 웹 대시보드
-
-```
-주소: http://localhost:8080/graph.html
-
-기능:
-├─ 현재 시간/날짜 표시
-├─ 모니터링 경과 시간
-├─ 일시정지/시작 버튼 (시간 멈춤)
-├─ 새로고침 버튼 (완전 초기화)
-├─ IP 카드 드래그 앤 드롭
-├─ IP 카드 최소화/복원 (− / + 버튼)
-├─ 상세 모달 (⊕ 버튼)
-└─ 정렬 (이름순, 지연순, 상태순)
+확인 사항:
+- IP 카드 표시
+- 실시간 차트 업데이트
+- 통계 정보 표시
 ```
