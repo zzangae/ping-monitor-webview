@@ -101,7 +101,7 @@
         .settings-tabs-row {
             display: flex;
             gap: 8px;
-            margin-bottom: 20px;
+            margin: 16px 20px;
         }
         
         .settings-tabs-row .settings-tab-btn {
@@ -141,12 +141,51 @@
         
         .modal-content {
             max-height: 85vh;
-            overflow-y: auto;
+            overflow: hidden;
         }
         
         .modal-body {
             max-height: 70vh;
             overflow-y: auto;
+        }
+        
+        /* 환경설정 모달 전용 스타일 */
+        .settings-modal-content {
+            max-width: 700px;
+            max-height: 85vh;
+            overflow: hidden;
+        }
+        
+        .settings-tab-container {
+            padding: 0 20px 20px 20px;
+        }
+        
+        /* 탭 내용 스크롤 박스 (v2.7) */
+        .settings-scroll-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        .settings-scroll-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .settings-scroll-box::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+        
+        .settings-scroll-box::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+        
+        .settings-scroll-box::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
     </style>
 
@@ -253,31 +292,34 @@
 
             <!-- Chart Settings Modal -->
             <div class="modal" id="chartSettingsModal">
-                <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-content settings-modal-content">
                     <div class="modal-header">
                         <h3>환경설정</h3>
                         <button class="modal-close" id="closeChartSettings">&times;</button>
                     </div>
-                    <div class="modal-body">
-                <!-- Settings Tabs -->
-                <div class="settings-tabs-row">
-                    <button class="settings-tab-btn active" data-settings-tab="chart">
-                        📊 차트 설정
-                    </button>
-                    <button class="settings-tab-btn" data-settings-tab="timerange">
-                        ⏱️ 시간 범위
-                    </button>
-                    <button class="settings-tab-btn" data-settings-tab="thresholds">
-                        🎯 그룹별 임계값
-                    </button>
-                    <button class="settings-tab-btn" data-settings-tab="ipgroups">
-                        📋 IP 그룹 관리
-                    </button>
-                </div>
-                
-                <div class="settings-success" id="settingsSuccess" style="margin-top: 16px;">
-                    ✓ 설정이 저장되었습니다!
-                </div>
+                    
+                    <!-- Settings Tabs (고정) -->
+                    <div class="settings-tabs-row">
+                        <button class="settings-tab-btn active" data-settings-tab="chart">
+                            📊 차트 설정
+                        </button>
+                        <button class="settings-tab-btn" data-settings-tab="timerange">
+                            ⏱️ 시간 범위
+                        </button>
+                        <button class="settings-tab-btn" data-settings-tab="thresholds">
+                            🎯 그룹별 임계값
+                        </button>
+                        <button class="settings-tab-btn" data-settings-tab="ipgroups">
+                            📋 IP 그룹 관리
+                        </button>
+                    </div>
+                    
+                    <div class="settings-success" id="settingsSuccess" style="margin: 0 20px 16px 20px;">
+                        ✓ 설정이 저장되었습니다!
+                    </div>
+                    
+                    <!-- 탭 내용 영역 -->
+                    <div class="settings-tab-container">
                 
                 <!-- Tab 1: 차트 설정 (기존) -->
                 <div class="settings-tab-content active" id="settings-chart">
@@ -286,14 +328,14 @@
                         <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
                         <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
                     </div>
-                    <div class="ip-checkbox-list" id="ipCheckboxList">
+                    <div class="settings-scroll-box" id="ipCheckboxList">
                         <!-- IP 체크박스가 동적으로 추가됩니다 -->
                     </div>
                 </div>
                 
                 <!-- Tab 2: 시간 범위 (v2.7) -->
                 <div class="settings-tab-content" id="settings-timerange">
-                    <div class="settings-section">
+                    <div class="settings-scroll-box">
                         <div class="settings-section-title">
                             ⏱️ 타임라인 시간 범위
                         </div>
@@ -343,127 +385,131 @@
                 
                 <!-- Tab 3: 그룹별 임계값 -->
                 <div class="settings-tab-content" id="settings-thresholds">
-                    <!-- Empty State Guide -->
-                    <div id="thresholdEmptyState" class="empty-state" style="display: block;">
-                        <div style="font-size: 48px; margin-bottom: 16px;">⏱️</div>
-                        <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">그룹별 임계값 설정</h3>
-                        <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
-                            각 그룹별로 장애 판정 시간을 커스터마이즈할 수 있습니다.<br>
-                            IP가 설정된 시간(초) 동안 연속으로 다운되면 장애로 기록됩니다.<br><br>
-                            <strong>예시:</strong> 서버 그룹 = 180초 → 3분간 다운 시 장애 기록
-                        </p>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div id="thresholdContent" style="display: none;">
-                        <div class="settings-section">
-                            <div class="settings-section-title">
-                                ⚡ 기본 임계값
-                            </div>
-                            <div class="settings-form-group">
-                                <label class="settings-label">장애 판정 임계값 (초)</label>
-                                <input type="number" class="settings-input" id="defaultThreshold" 
-                                       value="300" min="30" max="3600" step="30">
-                                <div class="settings-help">
-                                    IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
-                                </div>
-                            </div>
+                    <div class="settings-scroll-box">
+                        <!-- Empty State Guide -->
+                        <div id="thresholdEmptyState" class="empty-state" style="display: block;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">⏱️</div>
+                            <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">그룹별 임계값 설정</h3>
+                            <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
+                                각 그룹별로 장애 판정 시간을 커스터마이즈할 수 있습니다.<br>
+                                IP가 설정된 시간(초) 동안 연속으로 다운되면 장애로 기록됩니다.<br><br>
+                                <strong>예시:</strong> 서버 그룹 = 180초 → 3분간 다운 시 장애 기록
+                            </p>
                         </div>
                         
-                        <div class="settings-section">
-                            <div class="settings-section-title">
-                                📊 그룹별 커스텀 임계값
+                        <!-- Content -->
+                        <div id="thresholdContent" style="display: none;">
+                            <div class="settings-section">
+                                <div class="settings-section-title">
+                                    ⚡ 기본 임계값
+                                </div>
+                                <div class="settings-form-group">
+                                    <label class="settings-label">장애 판정 임계값 (초)</label>
+                                    <input type="number" class="settings-input" id="defaultThreshold" 
+                                           value="300" min="30" max="3600" step="30">
+                                    <div class="settings-help">
+                                        IP가 이 시간(초) 동안 다운되면 장애로 기록됩니다. (기본: 300초 = 5분)
+                                    </div>
+                                </div>
                             </div>
-                            <table class="threshold-table">
-                                <thead>
-                                    <tr>
-                                        <th>그룹</th>
-                                        <th>임계값 (초)</th>
-                                        <th>설명</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>🖥️ 서버</td>
-                                        <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">서버: 3분 (180초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>🌐 네트워크</td>
-                                        <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">네트워크: 5분 (300초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>🛡️ 방화벽</td>
-                                        <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">방화벽: 2분 (120초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>💾 데이터베이스</td>
-                                        <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">데이터베이스: 3분 (180초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>🌍 웹서버</td>
-                                        <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">웹서버: 4분 (240초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>📦 스토리지</td>
-                                        <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">스토리지: 5분 (300초)</td>
-                                    </tr>
-                                    <tr>
-                                        <td>🔧 기타</td>
-                                        <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
-                                        <td class="settings-help">기타: 5분 (300초)</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            
+                            <div class="settings-section">
+                                <div class="settings-section-title">
+                                    📊 그룹별 커스텀 임계값
+                                </div>
+                                <table class="threshold-table">
+                                    <thead>
+                                        <tr>
+                                            <th>그룹</th>
+                                            <th>임계값 (초)</th>
+                                            <th>설명</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>🖥️ 서버</td>
+                                            <td><input type="number" id="thresh_서버" value="180" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">서버: 3분 (180초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>🌐 네트워크</td>
+                                            <td><input type="number" id="thresh_네트워크" value="300" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">네트워크: 5분 (300초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>🛡️ 방화벽</td>
+                                            <td><input type="number" id="thresh_방화벽" value="120" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">방화벽: 2분 (120초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>💾 데이터베이스</td>
+                                            <td><input type="number" id="thresh_데이터베이스" value="180" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">데이터베이스: 3분 (180초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>🌍 웹서버</td>
+                                            <td><input type="number" id="thresh_웹서버" value="240" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">웹서버: 4분 (240초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>📦 스토리지</td>
+                                            <td><input type="number" id="thresh_스토리지" value="300" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">스토리지: 5분 (300초)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>🔧 기타</td>
+                                            <td><input type="number" id="thresh_기타" value="300" min="30" max="3600" step="30"></td>
+                                            <td class="settings-help">기타: 5분 (300초)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Tab 4: IP 그룹 관리 -->
                 <div class="settings-tab-content" id="settings-ipgroups">
-                    <!-- Empty State Guide -->
-                    <div id="ipgroupEmptyState" class="empty-state" style="display: block;">
-                        <div style="font-size: 48px; margin-bottom: 16px;">🏷️</div>
-                        <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">IP 그룹 및 우선순위 관리</h3>
-                        <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
-                            모니터링 중인 IP를 그룹으로 분류하고 우선순위를 설정할 수 있습니다.<br>
-                            우선순위 1이 가장 높으며, 장애 발생 시 중요도를 판단하는 기준이 됩니다.<br><br>
-                            <strong>그룹 종류:</strong> 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
-                        </p>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div id="ipgroupContent" style="display: none;">
-                        <div class="settings-section">
-                            <div class="settings-section-title">
-                                🏷️ IP별 그룹 및 우선순위
+                    <div class="settings-scroll-box">
+                        <!-- Empty State Guide -->
+                        <div id="ipgroupEmptyState" class="empty-state" style="display: block;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🏷️</div>
+                            <h3 style="font-size: 20px; margin-bottom: 12px; color: var(--text-primary);">IP 그룹 및 우선순위 관리</h3>
+                            <p style="font-size: 14px; line-height: 1.6; max-width: 500px; margin: 0 auto;">
+                                모니터링 중인 IP를 그룹으로 분류하고 우선순위를 설정할 수 있습니다.<br>
+                                우선순위 1이 가장 높으며, 장애 발생 시 중요도를 판단하는 기준이 됩니다.<br><br>
+                                <strong>그룹 종류:</strong> 서버, 네트워크, 방화벽, 데이터베이스, 웹서버, 스토리지, 기타
+                            </p>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div id="ipgroupContent" style="display: none;">
+                            <div class="settings-section">
+                                <div class="settings-section-title">
+                                    🏷️ IP별 그룹 및 우선순위
+                                </div>
+                                <div class="settings-help" style="margin-bottom: 16px;">
+                                    각 IP의 그룹과 우선순위를 설정합니다. 우선순위 1이 가장 높습니다.
+                                </div>
+                                <table class="ip-config-table" id="ipConfigTable">
+                                    <thead>
+                                        <tr>
+                                            <th>IP 주소</th>
+                                            <th>이름</th>
+                                            <th>그룹</th>
+                                            <th>우선순위 (1-5)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipConfigTableBody">
+                                        <!-- Dynamically populated -->
+                                    </tbody>
+                                </table>
                             </div>
-                            <div class="settings-help" style="margin-bottom: 16px;">
-                                각 IP의 그룹과 우선순위를 설정합니다. 우선순위 1이 가장 높습니다.
-                            </div>
-                            <table class="ip-config-table" id="ipConfigTable">
-                                <thead>
-                                    <tr>
-                                        <th>IP 주소</th>
-                                        <th>이름</th>
-                                        <th>그룹</th>
-                                        <th>우선순위 (1-5)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ipConfigTableBody">
-                                    <!-- Dynamically populated -->
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 </div>
                 
-                    </div><!-- modal-body -->
+                    </div><!-- settings-tab-container -->
                 </div><!-- modal-content -->
             </div><!-- modal -->
 
