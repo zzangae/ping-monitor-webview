@@ -12,7 +12,9 @@
     <link rel="stylesheet" href="/web/css/outages.css">
     <link rel="stylesheet" href="/web/css/settings.css">
     <link rel="stylesheet" href="/web/css/responsive.css">
+    <link rel="stylesheet" href="/web/config/settings.css">
     <script src="/web/chart.umd.min.js"></script>
+    <script src="/web/config/settings.js"></script>
     <style>
         /* 최소화 애니메이션 */
         .collapsible-content {
@@ -54,89 +56,33 @@
             transform: rotate(180deg);
         }
         
-        /* 시간 범위 라디오 버튼 스타일 (v2.7) */
-        .time-range-radio-group {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-        }
-        
-        .time-range-radio {
-            display: flex;
-            align-items: center;
-            padding: 10px 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .time-range-radio:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        
-        .time-range-radio input[type="radio"] {
-            margin-right: 8px;
-            accent-color: var(--primary);
-        }
-        
-        .time-range-radio input[type="radio"]:checked + .radio-label {
-            color: var(--primary);
-            font-weight: 600;
-        }
-        
-        .time-range-radio:has(input:checked) {
-            background: rgba(99, 102, 241, 0.15);
-            border-color: var(--primary);
-        }
-        
-        .radio-label {
-            color: #e4e6eb;
-            font-size: 13px;
-        }
-        
-        /* 환경설정 탭 한 줄 스타일 (v2.7) */
-        .settings-tabs-row {
-            display: flex;
-            gap: 8px;
-            margin: 16px 20px;
-        }
-        
-        .settings-tabs-row .settings-tab-btn {
-            flex: 1;
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            color: #b0b3b8;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
-            white-space: nowrap;
-        }
-        
-        .settings-tabs-row .settings-tab-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        
-        .settings-tabs-row .settings-tab-btn.active {
-            background: rgba(99, 102, 241, 0.2);
-            border-color: var(--primary);
-            color: #fff;
-            font-weight: 600;
-        }
-        
-        /* 모달 스크롤 방지 (v2.7) */
+        /* 모달 스크롤 방지 */
         .modal.active {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
+        }
+        
+        /* 타임라인 시간 범위 라벨 */
+        #timelineRangeLabel {
+            color: var(--primary);
+            font-weight: 500;
+            margin-left: 4px;
+        }
+        
+        /* 환경설정 모달 하단 저장 버튼 */
+        .settings-footer {
+            padding: 16px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: flex-end;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .settings-footer .btn {
+            min-width: 100px;
         }
         
         .modal-content {
@@ -147,45 +93,6 @@
         .modal-body {
             max-height: 70vh;
             overflow-y: auto;
-        }
-        
-        /* 환경설정 모달 전용 스타일 */
-        .settings-modal-content {
-            max-width: 700px;
-            max-height: 85vh;
-            overflow: hidden;
-        }
-        
-        .settings-tab-container {
-            padding: 0 20px 20px 20px;
-        }
-        
-        /* 탭 내용 스크롤 박스 (v2.7) */
-        .settings-scroll-box {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 16px;
-            max-height: 350px;
-            overflow-y: auto;
-        }
-        
-        .settings-scroll-box::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .settings-scroll-box::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
-        }
-        
-        .settings-scroll-box::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-        }
-        
-        .settings-scroll-box::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
         }
     </style>
 
@@ -268,7 +175,7 @@
             <!-- Comparison Chart -->
             <div class="card" id="comparisonChartCard">
                 <div class="card-header">
-                    <div class="card-title">IP 비교 타임라인</div>
+                    <div class="card-title" id="timelineTitle">IP 비교 타임라인 <span id="timelineRangeLabel">(1분)</span></div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <button class="chart-settings-btn" id="chartSettingsBtn" title="환경설정">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -326,7 +233,6 @@
                     <div class="chart-settings-controls">
                         <button class="btn btn-sm btn-secondary" id="selectAllIPs">전체 선택</button>
                         <button class="btn btn-sm btn-secondary" id="deselectAllIPs">전체 해제</button>
-                        <button class="btn btn-sm btn-primary" id="saveChartSettings">저장</button>
                     </div>
                     <div class="settings-scroll-box" id="ipCheckboxList">
                         <!-- IP 체크박스가 동적으로 추가됩니다 -->
@@ -510,6 +416,11 @@
                 </div>
                 
                     </div><!-- settings-tab-container -->
+                    
+                    <!-- 공통 저장 버튼 -->
+                    <div class="settings-footer">
+                        <button class="btn btn-primary" id="saveAllSettings">💾 저장</button>
+                    </div>
                 </div><!-- modal-content -->
             </div><!-- modal -->
 
@@ -715,38 +626,7 @@
         });
 
         function initializeEventListeners() {
-            // Timeline Range Radio Buttons (v2.7)
-            const timeRangeRadios = document.querySelectorAll('input[name="timeRange"]');
-            if (timeRangeRadios.length > 0) {
-                // 저장된 시간 범위 복원
-                const savedRange = localStorage.getItem('timelineRange');
-                if (savedRange) {
-                    selectedTimeRange = parseInt(savedRange);
-                    const savedRadio = document.querySelector(`input[name="timeRange"][value="${savedRange}"]`);
-                    if (savedRadio) {
-                        savedRadio.checked = true;
-                    }
-                } else {
-                    // 기본값 1분 선택
-                    const defaultRadio = document.querySelector('input[name="timeRange"][value="60"]');
-                    if (defaultRadio) {
-                        defaultRadio.checked = true;
-                    }
-                }
-                
-                timeRangeRadios.forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        selectedTimeRange = parseInt(e.target.value);
-                        localStorage.setItem('timelineRange', selectedTimeRange.toString());
-                        console.log('타임라인 범위 변경:', selectedTimeRange, '초');
-                        
-                        // 차트 즉시 업데이트
-                        if (currentData && currentData.targets) {
-                            updateComparisonChart(currentData.targets);
-                        }
-                    });
-                });
-            }
+            // Timeline Range Radio Buttons - settings.js로 이동됨
 
             // Timeline Minimize Button
             const timelineMinimizeBtn = document.getElementById('timelineMinimizeBtn');
@@ -927,78 +807,12 @@
                 });
             });
 
-            // Chart Settings Modal
-            const chartSettingsBtn = document.getElementById('chartSettingsBtn');
-            const chartSettingsModal = document.getElementById('chartSettingsModal');
-            const closeChartSettings = document.getElementById('closeChartSettings');
-            const selectAllIPs = document.getElementById('selectAllIPs');
-            const deselectAllIPs = document.getElementById('deselectAllIPs');
-            const saveChartSettings = document.getElementById('saveChartSettings');
-
-            if (chartSettingsBtn) {
-                chartSettingsBtn.addEventListener('click', () => {
-                    openChartSettings();
-                });
-            }
-
-            if (closeChartSettings) {
-                closeChartSettings.addEventListener('click', () => {
-                    closeChartSettingsModal();
-                });
-            }
-
-            if (chartSettingsModal) {
-                chartSettingsModal.addEventListener('click', (e) => {
-                    if (e.target.id === 'chartSettingsModal') {
-                        closeChartSettingsModal();
-                    }
-                });
-            }
-
-            if (selectAllIPs) {
-                selectAllIPs.addEventListener('click', () => {
-                    selectAllIPsForChart();
-                });
-            }
-
-            if (deselectAllIPs) {
-                deselectAllIPs.addEventListener('click', () => {
-                    deselectAllIPsForChart();
-                });
-            }
-
-            if (saveChartSettings) {
-                saveChartSettings.addEventListener('click', () => {
-                    saveVisibleIPsState();
-                    closeChartSettingsModal();
-                });
-            }
+            // Chart Settings Modal - settings.js로 이동됨
         }
 
         // Load saved header state
 
-        // Save visible IPs state
-        function saveVisibleIPsState() {
-            const visibleArray = Array.from(visibleIPs);
-            localStorage.setItem('visibleIPs', JSON.stringify(visibleArray));
-            console.log('필터 설정 저장:', visibleArray);
-        }
-
-        // Load visible IPs state
-        function loadVisibleIPsState() {
-            const saved = localStorage.getItem('visibleIPs');
-            if (saved) {
-                try {
-                    const visibleArray = JSON.parse(saved);
-                    visibleIPs = new Set(visibleArray);
-                    console.log('필터 설정 로드:', visibleArray);
-                    return true;
-                } catch (e) {
-                    console.error('필터 설정 로드 실패:', e);
-                }
-            }
-            return false;
-        }
+        // Save/Load visible IPs state - settings.js로 이동됨
 
         // Save minimized state
         function saveMinimizedState() {
@@ -1309,90 +1123,7 @@
             return result;
         }
 
-        // Chart Settings Functions
-        function openChartSettings() {
-            if (!currentData || !currentData.targets) return;
-            
-            populateIPCheckboxList(currentData.targets);
-            document.getElementById('chartSettingsModal').classList.add('active');
-            document.body.style.overflow = 'hidden';  // 배경 스크롤 방지
-        }
-        
-        function closeChartSettingsModal() {
-            document.getElementById('chartSettingsModal').classList.remove('active');
-            document.body.style.overflow = '';  // 배경 스크롤 복원
-        }
-
-        function populateIPCheckboxList(targets) {
-            const listContainer = document.getElementById('ipCheckboxList');
-            listContainer.innerHTML = '';
-
-            targets.forEach((target, index) => {
-                const item = document.createElement('div');
-                item.className = 'ip-checkbox-item';
-                
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = `ip-check-${index}`;
-                checkbox.checked = visibleIPs.has(index);
-                checkbox.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        visibleIPs.add(index);
-                    } else {
-                        visibleIPs.delete(index);
-                    }
-                    updateComparisonChart(targets);
-                });
-
-                const label = document.createElement('label');
-                label.className = 'ip-checkbox-label';
-                label.htmlFor = `ip-check-${index}`;
-                
-                const colorBox = document.createElement('div');
-                colorBox.className = 'ip-checkbox-color';
-                colorBox.style.backgroundColor = brightColors[index % brightColors.length];
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'ip-checkbox-name';
-                nameSpan.textContent = target.name;
-                
-                const ipSpan = document.createElement('span');
-                ipSpan.className = 'ip-checkbox-ip';
-                ipSpan.textContent = target.ip;
-                
-                label.appendChild(colorBox);
-                label.appendChild(nameSpan);
-                label.appendChild(ipSpan);
-                
-                item.appendChild(checkbox);
-                item.appendChild(label);
-                listContainer.appendChild(item);
-            });
-        }
-
-        function selectAllIPsForChart() {
-            if (!currentData || !currentData.targets) return;
-            
-            currentData.targets.forEach((_, index) => {
-                visibleIPs.add(index);
-                const checkbox = document.getElementById(`ip-check-${index}`);
-                if (checkbox) checkbox.checked = true;
-            });
-            
-            updateComparisonChart(currentData.targets);
-        }
-
-        function deselectAllIPsForChart() {
-            if (!currentData || !currentData.targets) return;
-            
-            visibleIPs.clear();
-            currentData.targets.forEach((_, index) => {
-                const checkbox = document.getElementById(`ip-check-${index}`);
-                if (checkbox) checkbox.checked = false;
-            });
-            
-            updateComparisonChart(currentData.targets);
-        }
+        // Chart Settings Functions - settings.js로 이동됨
 
         // Update IP Cards
         function updateIPCards(targets) {
@@ -1949,180 +1680,7 @@
             return date.toLocaleString('ko-KR');
         }
 
-        // ========================================================================
-        // Settings Tabs Event Listeners (v2.6)
-        // ========================================================================
-        
-        // Wait for DOM to load
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Initializing settings tabs...');
-            
-            const tabButtons = document.querySelectorAll('.settings-tab-btn');
-            console.log('Found tab buttons:', tabButtons.length);
-            
-            tabButtons.forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    const tabId = this.getAttribute('data-settings-tab');
-                    console.log('Tab clicked:', tabId);
-                    
-                    // Remove active class from all buttons
-                    tabButtons.forEach(b => b.classList.remove('active'));
-                    
-                    // Add active to clicked button
-                    this.classList.add('active');
-                    
-                    // Hide all tab contents
-                    document.querySelectorAll('.settings-tab-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // Show target tab content
-                    const targetTab = document.getElementById('settings-' + tabId);
-                    if (targetTab) {
-                        targetTab.classList.add('active');
-                        console.log('Activated tab:', 'settings-' + tabId);
-                    } else {
-                        console.error('Tab not found:', 'settings-' + tabId);
-                    }
-                    
-                    // Load data for specific tabs
-                    if (tabId === 'thresholds') {
-                        // Show loading state initially
-                        const emptyState = document.getElementById('thresholdEmptyState');
-                        const contentDiv = document.getElementById('thresholdContent');
-                        if (emptyState) emptyState.style.display = 'block';
-                        if (contentDiv) contentDiv.style.display = 'none';
-                        
-                        loadThresholdSettings();
-                    } else if (tabId === 'ipgroups') {
-                        // Show loading state initially
-                        const emptyState = document.getElementById('ipgroupEmptyState');
-                        const contentDiv = document.getElementById('ipgroupContent');
-                        if (emptyState) emptyState.style.display = 'block';
-                        if (contentDiv) contentDiv.style.display = 'none';
-                        
-                        loadIPConfigTable();
-                    }
-                });
-            });
-        });
-        
-        // Load threshold settings
-        async function loadThresholdSettings() {
-            const emptyState = document.getElementById('thresholdEmptyState');
-            const contentDiv = document.getElementById('thresholdContent');
-            
-            try {
-                const response = await fetch('/config/ping_config.ini?t=' + Date.now());
-                const text = await response.text();
-                
-                // Parse [OutageDetection] section
-                const outageRegex = /\[OutageDetection\]([\s\S]*?)(?:\[|$)/;
-                const match = text.match(outageRegex);
-                
-                if (match) {
-                    const section = match[1];
-                    
-                    const parseValue = (key) => {
-                        const regex = new RegExp(key + '\s*=\s*(\d+)');
-                        const m = section.match(regex);
-                        return m ? parseInt(m[1]) : null;
-                    };
-                    
-                    // Set default threshold
-                    const defaultVal = parseValue('OutageThreshold');
-                    if (defaultVal) {
-                        const input = document.getElementById('defaultThreshold');
-                        if (input) input.value = defaultVal;
-                    }
-                    
-                    // Set group thresholds
-                    const groups = {
-                        '서버': 'ServerOutageThreshold',
-                        '네트워크': 'NetworkOutageThreshold',
-                        '방화벽': 'FirewallOutageThreshold',
-                        '데이터베이스': 'DatabaseOutageThreshold',
-                        '웹서버': 'WebServerOutageThreshold',
-                        '스토리지': 'StorageOutageThreshold',
-                        '기타': 'OtherOutageThreshold'
-                    };
-                    
-                    for (const [groupName, key] of Object.entries(groups)) {
-                        const value = parseValue(key);
-                        if (value) {
-                            const input = document.getElementById('thresh_' + groupName);
-                            if (input) input.value = value;
-                        }
-                    }
-                    
-                    console.log('Threshold settings loaded');
-                    
-                    // Show content, hide empty state
-                    if (emptyState) emptyState.style.display = 'none';
-                    if (contentDiv) contentDiv.style.display = 'block';
-                } else {
-                    // No config found - show empty state
-                    if (emptyState) emptyState.style.display = 'block';
-                    if (contentDiv) contentDiv.style.display = 'none';
-                }
-            } catch (error) {
-                console.error('Failed to load threshold settings:', error);
-                // Show empty state on error
-                if (emptyState) emptyState.style.display = 'block';
-                if (contentDiv) contentDiv.style.display = 'none';
-            }
-        }
-        
-        // Load IP configuration table
-        function loadIPConfigTable() {
-            const emptyState = document.getElementById('ipgroupEmptyState');
-            const contentDiv = document.getElementById('ipgroupContent');
-            const tbody = document.getElementById('ipConfigTableBody');
-            
-            if (!tbody) {
-                console.error('ipConfigTableBody not found');
-                return;
-            }
-            
-            if (!currentData || !currentData.targets || currentData.targets.length === 0) {
-                console.warn('No ping data available');
-                // Show empty state
-                if (emptyState) emptyState.style.display = 'block';
-                if (contentDiv) contentDiv.style.display = 'none';
-                return;
-            }
-            
-            // Hide empty state, show content
-            if (emptyState) emptyState.style.display = 'none';
-            if (contentDiv) contentDiv.style.display = 'block';
-            
-            tbody.innerHTML = currentData.targets.map(target => `
-                <tr>
-                    <td style="font-family: 'Courier New', monospace;">${target.ip}</td>
-                    <td>${target.name}</td>
-                    <td>
-                        <select data-ip="${target.ip}" class="ip-group-select">
-                            <option value="서버" ${(target.group === '서버' || target.group === 'Server') ? 'selected' : ''}>🖥️ 서버</option>
-                            <option value="네트워크" ${(target.group === '네트워크' || target.group === 'Network') ? 'selected' : ''}>🌐 네트워크</option>
-                            <option value="방화벽" ${(target.group === '방화벽' || target.group === 'Firewall') ? 'selected' : ''}>🛡️ 방화벽</option>
-                            <option value="데이터베이스" ${target.group === '데이터베이스' ? 'selected' : ''}>💾 데이터베이스</option>
-                            <option value="웹서버" ${target.group === '웹서버' ? 'selected' : ''}>🌍 웹서버</option>
-                            <option value="스토리지" ${target.group === '스토리지' ? 'selected' : ''}>📦 스토리지</option>
-                            <option value="기타" ${(target.group === '기타' || target.group === 'Other' || !target.group) ? 'selected' : ''}>🔧 기타</option>
-                        </select>
-                    </td>
-                    <td>
-                        <input type="number" min="1" max="5" value="${target.priority || 5}" 
-                               data-ip="${target.ip}" class="ip-priority-input">
-                    </td>
-                </tr>
-            `).join('');
-            
-            console.log('IP config table loaded with', currentData.targets.length, 'entries');
-        }
+        // Settings Functions - settings.js로 이동됨
 
     </script>
 

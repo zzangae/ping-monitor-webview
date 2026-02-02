@@ -1,0 +1,368 @@
+/**
+ * Ping Monitor v2.7 - Settings Modal Styles
+ * 환경설정 모달 관련 스타일
+ */
+
+/* ========================================
+   시간 범위 라디오 버튼 스타일
+   ======================================== */
+.time-range-radio-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.time-range-radio {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.time-range-radio:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.time-range-radio input[type="radio"] {
+    margin-right: 8px;
+    accent-color: var(--primary);
+}
+
+.time-range-radio input[type="radio"]:checked + .radio-label {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.time-range-radio:has(input:checked) {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--primary);
+}
+
+.radio-label {
+    color: #e4e6eb;
+    font-size: 13px;
+}
+
+/* ========================================
+   환경설정 탭 버튼 스타일
+   ======================================== */
+.settings-tabs-row {
+    display: flex;
+    gap: 8px;
+    margin: 16px 20px;
+}
+
+.settings-tabs-row .settings-tab-btn {
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #b0b3b8;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.settings-tabs-row .settings-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.settings-tabs-row .settings-tab-btn.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--primary);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* ========================================
+   환경설정 모달 전용 스타일
+   ======================================== */
+.settings-modal-content {
+    max-width: 700px;
+    max-height: 85vh;
+    overflow: hidden;
+}
+
+.settings-tab-container {
+    padding: 0 20px 20px 20px;
+}
+
+/* ========================================
+   탭 내용 스크롤 박스
+   ======================================== */
+.settings-scroll-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 16px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.settings-scroll-box::-webkit-scrollbar {
+    width: 8px;
+}
+
+.settings-scroll-box::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.settings-scroll-box::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.settings-scroll-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ========================================
+   설정 섹션 스타일
+   ======================================== */
+.settings-section {
+    margin-bottom: 20px;
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e4e6eb;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-help {
+    font-size: 12px;
+    color: #8b8d91;
+    line-height: 1.5;
+}
+
+.settings-form-group {
+    margin-bottom: 16px;
+}
+
+.settings-label {
+    display: block;
+    font-size: 13px;
+    color: #b0b3b8;
+    margin-bottom: 6px;
+}
+
+.settings-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #e4e6eb;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.settings-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* ========================================
+   임계값 테이블 스타일
+   ======================================== */
+.threshold-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.threshold-table th,
+.threshold-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.threshold-table th {
+    color: #b0b3b8;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.threshold-table td {
+    color: #e4e6eb;
+}
+
+.threshold-table input[type="number"] {
+    width: 80px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #e4e6eb;
+    font-size: 13px;
+    text-align: center;
+}
+
+.threshold-table input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* ========================================
+   IP 설정 테이블 스타일
+   ======================================== */
+.ip-config-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ip-config-table th,
+.ip-config-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ip-config-table th {
+    color: #b0b3b8;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ip-config-table td {
+    color: #e4e6eb;
+}
+
+.ip-config-table select,
+.ip-config-table input[type="number"] {
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #e4e6eb;
+    font-size: 12px;
+}
+
+.ip-config-table select {
+    width: 120px;
+}
+
+.ip-config-table input[type="number"] {
+    width: 60px;
+    text-align: center;
+}
+
+.ip-config-table select:focus,
+.ip-config-table input[type="number"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* ========================================
+   차트 설정 컨트롤
+   ======================================== */
+.chart-settings-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+/* ========================================
+   IP 체크박스 아이템
+   ======================================== */
+.ip-checkbox-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+}
+
+.ip-checkbox-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ip-checkbox-item:last-child {
+    border-bottom: none;
+}
+
+.ip-checkbox-item input[type="checkbox"] {
+    margin-right: 12px;
+    accent-color: var(--primary);
+}
+
+.ip-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    cursor: pointer;
+}
+
+.ip-checkbox-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.ip-checkbox-name {
+    color: #e4e6eb;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ip-checkbox-ip {
+    color: #8b8d91;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+}
+
+/* ========================================
+   설정 저장 완료 메시지
+   ======================================== */
+.settings-success {
+    display: none;
+    padding: 10px 16px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 6px;
+    color: #10b981;
+    font-size: 13px;
+    text-align: center;
+}
+
+.settings-success.show {
+    display: block;
+}
+
+/* ========================================
+   Empty State 스타일
+   ======================================== */
+.settings-scroll-box .empty-state {
+    text-align: center;
+    padding: 20px;
+}
+
+.settings-scroll-box .empty-state h3 {
+    margin: 0;
+}
+
+.settings-scroll-box .empty-state p {
+    margin: 0;
+}
