@@ -96,6 +96,39 @@
             color: #e4e6eb;
             font-size: 13px;
         }
+        
+        /* 환경설정 탭 한 줄 스타일 (v2.7) */
+        .settings-tabs-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .settings-tabs-row .settings-tab-btn {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #b0b3b8;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .settings-tabs-row .settings-tab-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .settings-tabs-row .settings-tab-btn.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: var(--primary);
+            color: #fff;
+            font-weight: 600;
+        }
     </style>
 
 </head>
@@ -201,14 +234,14 @@
 
             <!-- Chart Settings Modal -->
             <div class="modal" id="chartSettingsModal">
-                <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-content" style="max-width: 700px;">
                     <div class="modal-header">
                         <h3>환경설정</h3>
                         <button class="modal-close" id="closeChartSettings">&times;</button>
                     </div>
                     <div class="modal-body">
                 <!-- Settings Tabs -->
-                <div class="settings-tabs">
+                <div class="settings-tabs-row">
                     <button class="settings-tab-btn active" data-settings-tab="chart">
                         📊 차트 설정
                     </button>
