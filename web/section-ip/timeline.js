@@ -99,6 +99,9 @@ function initTimelineEvents() {
 // 업데이트 함수
 // ========================================================================
 
+// 마지막 차트 업데이트 시간 (전역으로 관리)
+window.lastChartUpdate = 0;
+
 /**
  * 비교 차트 업데이트 (v2.7 - Extended Timeline Support)
  * @param {Array} targets - 핑 대상 배열
@@ -106,7 +109,9 @@ function initTimelineEvents() {
 function updateComparisonChart(targets) {
     if (!comparisonChart || !targets) return;
     
-    // 확장 히스토리 업데이트
+    const now = Date.now();
+    
+    // 확장 히스토리 업데이트 (매번 실행)
     targets.forEach(target => {
         const key = target.ip;
         if (!extendedHistory[key]) {
@@ -117,11 +122,34 @@ function updateComparisonChart(targets) {
         const currentLatency = target.online ? target.latency : 0;
         extendedHistory[key].push(currentLatency);
         
-        // 최대 포인트 수 제한
-        if (extendedHistory[key].length > MAX_HISTORY_POINTS) {
-            extendedHistory[key].shift();
+        // 최대 포인트 수 제한 - 10% 초과 시에만 정리 (shift 빈도 감소)
+        const maxWithBuffer = Math.floor(MAX_HISTORY_POINTS * 1.1);
+        if (extendedHistory[key].length > maxWithBuffer) {
+            // 한 번에 10% 제거 (빈번한 shift 방지)
+            const removeCount = extendedHistory[key].length - MAX_HISTORY_POINTS;
+            extendedHistory[key] = extendedHistory[key].slice(removeCount);
         }
     });
+    
+    // 차트 업데이트 빈도 조절 (시간 범위에 따라)
+    let updateInterval;
+    if (selectedTimeRange <= 60) {
+        updateInterval = 1000;       // 1분 이하: 매초
+    } else if (selectedTimeRange <= 300) {
+        updateInterval = 2000;       // 5분 이하: 2초마다
+    } else if (selectedTimeRange <= 1800) {
+        updateInterval = 5000;       // 30분 이하: 5초마다
+    } else if (selectedTimeRange <= 3600) {
+        updateInterval = 10000;      // 1시간 이하: 10초마다
+    } else {
+        updateInterval = 30000;      // 1시간 초과: 30초마다
+    }
+    
+    // 업데이트 간격 확인
+    if (now - window.lastChartUpdate < updateInterval) {
+        return;  // 아직 업데이트 시간이 안 됨
+    }
+    window.lastChartUpdate = now;
     
     // 시간 범위에 따른 레이블 생성
     const labels = generateTimeLabels(selectedTimeRange);
@@ -150,7 +178,7 @@ function updateComparisonChart(targets) {
         };
     });
     
-    comparisonChart.update();
+    comparisonChart.update('none');  // 애니메이션 없이 업데이트
 }
 
 /**
@@ -265,6 +293,9 @@ function setTimelineRange(seconds) {
     // 레이블 업데이트
     updateTimelineRangeLabel();
     
+    // 즉시 차트 업데이트를 위해 타이머 리셋
+    window.lastChartUpdate = 0;
+    
     console.log('Timeline range changed to:', seconds, 'seconds');
 }
 
@@ -334,7 +365,9 @@ function loadVisibleIPsState() {
     if (saved) {
         try {
             const visibleArray = JSON.parse(saved);
-            visibleIPs = new Set(visibleArray);
+            // 기존 Set을 비우고 새 값 추가 (참조 유지)
+            visibleIPs.clear();
+            visibleArray.forEach(index => visibleIPs.add(index));
             console.log('필터 설정 로드:', visibleArray);
             return true;
         } catch (e) {
@@ -364,6 +397,7 @@ window.extendedHistory = extendedHistory;
 window.selectedTimeRange = selectedTimeRange;
 window.visibleIPs = visibleIPs;
 window.brightColors = brightColors;
+// window.lastChartUpdate는 이미 선언됨
 
 window.initComparisonChart = initComparisonChart;
 window.initTimelineEvents = initTimelineEvents;

@@ -201,6 +201,9 @@ function initTimeRangeRadios() {
             // 타임라인 제목 라벨 업데이트
             updateTimelineRangeLabel(selectedTimeRange);
             
+            // 즉시 차트 업데이트를 위해 타이머 리셋
+            window.lastChartUpdate = 0;
+            
             // 차트 즉시 업데이트
             if (currentData && currentData.targets) {
                 updateComparisonChart(currentData.targets);
@@ -689,7 +692,9 @@ function loadVisibleIPsState() {
     if (saved) {
         try {
             const visibleArray = JSON.parse(saved);
-            visibleIPs = new Set(visibleArray);
+            // 기존 Set을 비우고 새 값 추가 (참조 유지)
+            visibleIPs.clear();
+            visibleArray.forEach(index => visibleIPs.add(index));
             console.log('필터 설정 로드:', visibleArray);
             return true;
         } catch (e) {
