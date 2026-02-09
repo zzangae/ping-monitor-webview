@@ -250,6 +250,104 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 4px rgba(255, 215, 0, 0.5);
         }
         
+        /* 알람 설정 스타일 */
+        .settings-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+        }
+        
+        .settings-checkbox-label:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .settings-checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        
+        .settings-checkbox-label span {
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+        
+        .settings-select {
+            flex: 1;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .settings-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .settings-select option {
+            background: #2d3250;
+            color: var(--text-primary);
+        }
+        
+        .alarm-threshold-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        /* 알람 표시기 */
+        .alarm-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #ff4757, #ff6b6b);
+            color: white;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 20px rgba(255, 71, 87, 0.5);
+            z-index: 10000;
+            display: none;
+            animation: alarmPulse 1s infinite;
+        }
+        
+        .alarm-indicator.active {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        @keyframes alarmPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        
+        .alarm-indicator .alarm-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .alarm-indicator .alarm-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
         .modal-content {
             max-height: 85vh;
             overflow: hidden;
@@ -280,6 +378,12 @@
 
 </head>
 <body>
+    <!-- 알람 표시기 -->
+    <div class="alarm-indicator" id="alarmIndicator">
+        <span>🔔</span>
+        <span id="alarmMessage">미응답 알람</span>
+        <button class="alarm-close" id="alarmClose">×</button>
+    </div>
     <!-- Header -->
     <div class="header" id="mainHeader">
         <h1>🌐 Ping 응답 확인 시각화 도구 v2.7</h1>
@@ -395,6 +499,9 @@
                         <button class="settings-tab-btn" data-settings-tab="timerange">
                             ⏱️ 시간 범위
                         </button>
+                        <button class="settings-tab-btn" data-settings-tab="alarm">
+                            🔔 알람 설정
+                        </button>
                         <button class="settings-tab-btn" data-settings-tab="thresholds">
                             🎯 그룹별 설정
                         </button>
@@ -471,7 +578,96 @@
                     </div>
                 </div>
                 
-                <!-- Tab 3: 그룹별 설정 -->
+                <!-- Tab 3: 알람 설정 (v2.7) -->
+                <div class="settings-tab-content" id="settings-alarm">
+                    <div class="settings-scroll-box">
+                        <div class="settings-section">
+                            <div class="settings-section-title">
+                                🔔 미응답 알람 설정
+                            </div>
+                            <div class="settings-help" style="margin-bottom: 16px;">
+                                IP가 설정된 시간 동안 응답이 없으면 알람이 울립니다.
+                            </div>
+                            
+                            <!-- 알람 활성화 -->
+                            <div class="settings-form-group">
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="alarmEnabled" checked>
+                                    <span>알람 활성화</span>
+                                </label>
+                            </div>
+                            
+                            <!-- 알람 임계값 설정 -->
+                            <div class="settings-form-group">
+                                <label class="settings-label">알람 발생 시간 (초)</label>
+                                <div class="threshold-input-group">
+                                    <input type="number" class="settings-input" id="alarmThreshold" 
+                                           value="30" min="10" max="600" step="10">
+                                    <input type="range" class="threshold-slider" id="alarmThreshold_slider"
+                                           value="30" min="10" max="300" step="10">
+                                </div>
+                                <div class="settings-help">
+                                    IP가 이 시간(초) 동안 응답이 없으면 알람이 울립니다. (기본: 30초)
+                                </div>
+                            </div>
+                            
+                            <!-- 알람 소리 선택 -->
+                            <div class="settings-form-group">
+                                <label class="settings-label">알람 소리</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <select class="settings-select" id="alarmSound">
+                                        <option value="beep">기본 비프음</option>
+                                        <option value="alert">경고음</option>
+                                        <option value="chime">차임벨</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-secondary" id="testAlarmSound">🔊 테스트</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 알람 반복 설정 -->
+                            <div class="settings-form-group">
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="alarmRepeat">
+                                    <span>미응답 지속 시 반복 알람 (30초 간격)</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <div class="settings-section-title">
+                                📋 미응답 기록 임계값
+                            </div>
+                            <div class="settings-help" style="margin-bottom: 16px;">
+                                설정된 시간 이상 미응답 시 미응답 기록 탭에 자동 기록됩니다.
+                            </div>
+                            
+                            <div class="alarm-threshold-list">
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="record30s" checked>
+                                    <span>30초 이상 미응답 시 기록</span>
+                                </label>
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="record1m" checked>
+                                    <span>1분 이상 미응답 시 기록</span>
+                                </label>
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="record3m" checked>
+                                    <span>3분 이상 미응답 시 기록</span>
+                                </label>
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="record5m">
+                                    <span>5분 이상 미응답 시 기록</span>
+                                </label>
+                                <label class="settings-checkbox-label">
+                                    <input type="checkbox" id="record10m">
+                                    <span>10분 이상 미응답 시 기록</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tab 4: 그룹별 설정 -->
                 <div class="settings-tab-content" id="settings-thresholds">
                     <div class="settings-scroll-box">
                         <!-- Content -->
@@ -764,6 +960,25 @@
         let currentFilter = 'all';
         let allOutages = [];
         let currentOutageFilter = {status: 'all', group: 'all'};
+        
+        // Alarm State (v2.7)
+        let alarmSettings = {
+            enabled: true,
+            threshold: 30,          // 알람 발생 시간 (초)
+            sound: 'beep',          // 알람 소리 종류
+            repeat: false,          // 반복 알람
+            recordThresholds: {     // 미응답 기록 임계값
+                sec30: true,
+                min1: true,
+                min3: true,
+                min5: false,
+                min10: false
+            }
+        };
+        let ipOfflineTimers = {};   // IP별 오프라인 시작 시간
+        let alarmActive = false;    // 현재 알람 활성 상태
+        let alarmRepeatInterval = null;  // 반복 알람 인터벌
+        let audioContext = null;    // Web Audio API 컨텍스트
 
         // DOM이 준비된 후 실행
         document.addEventListener('DOMContentLoaded', function() {
@@ -775,6 +990,9 @@
             // Initialize timeline (from timeline.js)
             initTimelineEvents();
             loadTimelineRange();
+            
+            // Initialize alarm settings
+            initAlarmSettings();
             
             // Initialize charts and data
             initComparisonChart();
@@ -1116,6 +1334,9 @@
             
             // Update modal if open
             updateModalIfOpen();
+            
+            // 오프라인 상태 체크 및 알람 (v2.7)
+            checkOfflineStatus(data.targets);
         }
 
         // updateComparisonChart - timeline.js로 이동됨
@@ -1685,6 +1906,281 @@
         }
 
         // Settings Functions - settings.js로 이동됨
+
+        // ========================================
+        // 알람 기능 (v2.7)
+        // ========================================
+        
+        /**
+         * 알람 설정 초기화
+         */
+        function initAlarmSettings() {
+            // localStorage에서 설정 로드
+            loadAlarmSettings();
+            
+            // UI에 설정값 반영
+            const alarmEnabled = document.getElementById('alarmEnabled');
+            const alarmThreshold = document.getElementById('alarmThreshold');
+            const alarmThresholdSlider = document.getElementById('alarmThreshold_slider');
+            const alarmSound = document.getElementById('alarmSound');
+            const alarmRepeat = document.getElementById('alarmRepeat');
+            
+            if (alarmEnabled) alarmEnabled.checked = alarmSettings.enabled;
+            if (alarmThreshold) alarmThreshold.value = alarmSettings.threshold;
+            if (alarmThresholdSlider) alarmThresholdSlider.value = alarmSettings.threshold;
+            if (alarmSound) alarmSound.value = alarmSettings.sound;
+            if (alarmRepeat) alarmRepeat.checked = alarmSettings.repeat;
+            
+            // 미응답 기록 임계값 체크박스
+            const record30s = document.getElementById('record30s');
+            const record1m = document.getElementById('record1m');
+            const record3m = document.getElementById('record3m');
+            const record5m = document.getElementById('record5m');
+            const record10m = document.getElementById('record10m');
+            
+            if (record30s) record30s.checked = alarmSettings.recordThresholds.sec30;
+            if (record1m) record1m.checked = alarmSettings.recordThresholds.min1;
+            if (record3m) record3m.checked = alarmSettings.recordThresholds.min3;
+            if (record5m) record5m.checked = alarmSettings.recordThresholds.min5;
+            if (record10m) record10m.checked = alarmSettings.recordThresholds.min10;
+            
+            // 이벤트 리스너 등록
+            if (alarmEnabled) {
+                alarmEnabled.addEventListener('change', (e) => {
+                    alarmSettings.enabled = e.target.checked;
+                    saveAlarmSettings();
+                    if (!e.target.checked) {
+                        stopAlarm();
+                    }
+                });
+            }
+            
+            if (alarmThreshold) {
+                alarmThreshold.addEventListener('input', (e) => {
+                    const value = parseInt(e.target.value);
+                    alarmSettings.threshold = value;
+                    if (alarmThresholdSlider) alarmThresholdSlider.value = value;
+                    saveAlarmSettings();
+                });
+            }
+            
+            if (alarmThresholdSlider) {
+                alarmThresholdSlider.addEventListener('input', (e) => {
+                    const value = parseInt(e.target.value);
+                    alarmSettings.threshold = value;
+                    if (alarmThreshold) alarmThreshold.value = value;
+                    saveAlarmSettings();
+                });
+            }
+            
+            if (alarmSound) {
+                alarmSound.addEventListener('change', (e) => {
+                    alarmSettings.sound = e.target.value;
+                    saveAlarmSettings();
+                });
+            }
+            
+            if (alarmRepeat) {
+                alarmRepeat.addEventListener('change', (e) => {
+                    alarmSettings.repeat = e.target.checked;
+                    saveAlarmSettings();
+                });
+            }
+            
+            // 미응답 기록 임계값 이벤트
+            [record30s, record1m, record3m, record5m, record10m].forEach((el, index) => {
+                if (el) {
+                    el.addEventListener('change', (e) => {
+                        const keys = ['sec30', 'min1', 'min3', 'min5', 'min10'];
+                        alarmSettings.recordThresholds[keys[index]] = e.target.checked;
+                        saveAlarmSettings();
+                    });
+                }
+            });
+            
+            // 알람 테스트 버튼
+            const testBtn = document.getElementById('testAlarmSound');
+            if (testBtn) {
+                testBtn.addEventListener('click', () => {
+                    playAlarmSound(alarmSettings.sound);
+                });
+            }
+            
+            // 알람 닫기 버튼
+            const alarmClose = document.getElementById('alarmClose');
+            if (alarmClose) {
+                alarmClose.addEventListener('click', stopAlarm);
+            }
+        }
+        
+        /**
+         * 알람 설정 저장
+         */
+        function saveAlarmSettings() {
+            localStorage.setItem('alarmSettings', JSON.stringify(alarmSettings));
+            console.log('알람 설정 저장:', alarmSettings);
+        }
+        
+        /**
+         * 알람 설정 로드
+         */
+        function loadAlarmSettings() {
+            const saved = localStorage.getItem('alarmSettings');
+            if (saved) {
+                try {
+                    const loaded = JSON.parse(saved);
+                    alarmSettings = { ...alarmSettings, ...loaded };
+                    console.log('알람 설정 로드:', alarmSettings);
+                } catch (e) {
+                    console.error('알람 설정 로드 실패:', e);
+                }
+            }
+        }
+        
+        /**
+         * 알람 사운드 재생 (Web Audio API)
+         */
+        function playAlarmSound(type) {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                switch (type) {
+                    case 'beep':
+                        // 기본 비프음
+                        oscillator.frequency.value = 800;
+                        oscillator.type = 'sine';
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.5);
+                        break;
+                        
+                    case 'alert':
+                        // 경고음 (2회 반복)
+                        oscillator.frequency.value = 1000;
+                        oscillator.type = 'square';
+                        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0, audioContext.currentTime + 0.15);
+                        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime + 0.25);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.5);
+                        break;
+                        
+                    case 'chime':
+                        // 차임벨
+                        oscillator.frequency.value = 523.25;  // C5
+                        oscillator.type = 'sine';
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 1);
+                        
+                        // 화음 추가
+                        const osc2 = audioContext.createOscillator();
+                        const gain2 = audioContext.createGain();
+                        osc2.connect(gain2);
+                        gain2.connect(audioContext.destination);
+                        osc2.frequency.value = 659.25;  // E5
+                        osc2.type = 'sine';
+                        gain2.gain.setValueAtTime(0.2, audioContext.currentTime);
+                        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                        osc2.start(audioContext.currentTime);
+                        osc2.stop(audioContext.currentTime + 1);
+                        break;
+                }
+            } catch (e) {
+                console.error('알람 사운드 재생 실패:', e);
+            }
+        }
+        
+        /**
+         * 알람 시작
+         */
+        function startAlarm(ipName, offlineSeconds) {
+            if (alarmActive) return;  // 이미 알람 중
+            
+            alarmActive = true;
+            const indicator = document.getElementById('alarmIndicator');
+            const message = document.getElementById('alarmMessage');
+            
+            if (indicator && message) {
+                message.textContent = `${ipName}: ${offlineSeconds}초 이상 미응답`;
+                indicator.classList.add('active');
+            }
+            
+            // 알람 사운드 재생
+            playAlarmSound(alarmSettings.sound);
+            
+            // 반복 알람
+            if (alarmSettings.repeat) {
+                alarmRepeatInterval = setInterval(() => {
+                    if (alarmActive) {
+                        playAlarmSound(alarmSettings.sound);
+                    }
+                }, 30000);  // 30초마다 반복
+            }
+        }
+        
+        /**
+         * 알람 중지
+         */
+        function stopAlarm() {
+            alarmActive = false;
+            const indicator = document.getElementById('alarmIndicator');
+            if (indicator) {
+                indicator.classList.remove('active');
+            }
+            
+            if (alarmRepeatInterval) {
+                clearInterval(alarmRepeatInterval);
+                alarmRepeatInterval = null;
+            }
+        }
+        
+        /**
+         * IP 오프라인 상태 체크 및 알람 처리
+         */
+        function checkOfflineStatus(targets) {
+            if (!alarmSettings.enabled) return;
+            
+            const now = Date.now();
+            
+            targets.forEach(target => {
+                const key = target.ip;
+                
+                if (!target.online) {
+                    // 오프라인 상태
+                    if (!ipOfflineTimers[key]) {
+                        ipOfflineTimers[key] = now;
+                    }
+                    
+                    const offlineSeconds = Math.floor((now - ipOfflineTimers[key]) / 1000);
+                    
+                    // 알람 임계값 체크
+                    if (offlineSeconds >= alarmSettings.threshold && !alarmActive) {
+                        startAlarm(target.name, offlineSeconds);
+                    }
+                } else {
+                    // 온라인으로 복구
+                    if (ipOfflineTimers[key]) {
+                        delete ipOfflineTimers[key];
+                        // 알람 중지
+                        if (alarmActive) {
+                            stopAlarm();
+                        }
+                    }
+                }
+            });
+        }
 
     </script>
 
