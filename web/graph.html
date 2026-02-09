@@ -19,6 +19,45 @@
     <script src="/web/config/settings.js"></script>
     <style>
         
+        /* IP 카드 그리드 - 원본 flex 레이아웃 */
+        .ip-grid {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 16px !important;
+        }
+        
+        /* IP 카드 반응형 너비 */
+        .ip-card:not(.minimized) {
+            flex: 1 1 280px !important;
+            min-width: 280px !important;
+            max-width: calc(20% - 13px) !important;  /* 5개 기준 */
+        }
+        
+        /* 화면 크기별 카드 최대 너비 조정 */
+        @media (max-width: 1600px) {
+            .ip-card:not(.minimized) {
+                max-width: calc(25% - 12px) !important;  /* 4개 */
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .ip-card:not(.minimized) {
+                max-width: calc(33.333% - 11px) !important;  /* 3개 */
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .ip-card:not(.minimized) {
+                max-width: calc(50% - 8px) !important;  /* 2개 */
+            }
+        }
+        
+        @media (max-width: 600px) {
+            .ip-card:not(.minimized) {
+                max-width: 100% !important;  /* 1개 */
+            }
+        }
+        
         /* 최소화된 IP 카드 스타일 수정 */
         .minimized-cards-container {
             padding: 8px;
