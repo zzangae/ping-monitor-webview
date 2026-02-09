@@ -59,7 +59,12 @@ function initComparisonChart() {
                 y: {
                     beginAtZero: true,
                     grid: { color: '#3a3f5c' },
-                    ticks: { color: '#b0b3b8' }
+                    ticks: { color: '#b0b3b8' },
+                    title: {
+                        display: true,
+                        text: 'ms',
+                        color: '#b0b3b8'
+                    }
                 },
                 x: {
                     grid: { color: '#3a3f5c' },
