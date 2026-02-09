@@ -14,9 +14,11 @@
     <link rel="stylesheet" href="/web/css/responsive.css">
     <link rel="stylesheet" href="/web/config/settings.css">
     <link rel="stylesheet" href="/web/section-ip/timeline.css">
+    <link rel="stylesheet" href="/web/minwin-ip/minwin-ip.css">
     <script src="/web/chart.umd.min.js"></script>
     <script src="/web/section-ip/timeline.js"></script>
     <script src="/web/config/settings.js"></script>
+    <script src="/web/minwin-ip/minwin-ip.js"></script>
     <style>
         
         /* IP 카드 그리드 - 원본 flex 레이아웃 */
@@ -58,69 +60,102 @@
             }
         }
         
-        /* 최소화된 IP 카드 스타일 수정 */
-        .minimized-cards-container {
-            padding: 8px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        /* 최소화 관련 스타일은 minwin-ip.css로 이동됨 */
         
+        /* 최소화된 IP 카드 스타일 (인라인 보강) */
         .ip-card.minimized {
-            width: auto;
-            min-width: 80px;
-            max-width: 120px;
-            padding: 8px;
-            padding-bottom: 12px;
-            overflow: visible;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            width: auto !important;
+            min-width: 80px !important;
+            max-width: 120px !important;
+            padding: 8px !important;
+            padding-bottom: 12px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
         }
         
-        /* 최소화된 카드의 IP 이름 - 한 줄로 제한 */
+        .ip-card.minimized .ip-header {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        
+        .ip-card.minimized .ip-header > div:first-child {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            order: 1 !important;
+        }
+        
         .ip-card.minimized .ip-name {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100px;
-            text-align: center;
-            font-size: 11px;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            color: #e4e6eb !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-align: center !important;
+            margin-top: 4px !important;
+            max-width: 100px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
         
-        /* 최소화된 카드의 상태 뱃지 */
+        /* IP 주소 표시 */
+        .ip-card.minimized .ip-address {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            color: #b0b3b8 !important;
+            font-size: 9px !important;
+            text-align: center !important;
+            margin-top: 2px !important;
+            max-width: 100px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        
+        .ip-card.minimized .chart-container,
+        .ip-card.minimized .stats-row,
+        .ip-card.minimized .packet-bars {
+            display: none !important;
+        }
+        
         .ip-card.minimized .status-badge {
-            margin-top: 6px;
-            margin-bottom: 4px;
-            font-size: 10px;
-            padding: 2px 8px;
+            display: inline-block !important;
+            margin-top: 6px !important;
+            font-size: 10px !important;
         }
         
-        /* 최소화 버튼 스타일 */
-        .minimize-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+        .ip-card.minimized .card-actions {
+            order: 0 !important;
+            margin-bottom: 4px !important;
         }
         
-        .minimize-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
+        .ip-card.minimized .card-minimize-btn {
+            display: none !important;
         }
         
-        .minimize-btn svg {
-            transition: transform 0.3s ease;
+        .ip-card.minimized .card-restore-btn {
+            display: inline-flex !important;
         }
         
-        .minimize-btn.minimized svg {
-            transform: rotate(180deg);
+        .ip-card.minimized .card-expand-btn {
+            display: none !important;
+        }
+        
+        /* 최소화된 IP 영역 카운트 배지 */
+        .minimized-count {
+            background: #6c5ce7 !important;
+            color: white !important;
+            padding: 2px 10px !important;
+            border-radius: 12px !important;
+            font-size: 12px !important;
+            font-weight: bold !important;
+            display: inline-block !important;
         }
         
         /* 모달 스크롤 방지 */
@@ -991,6 +1026,9 @@
             initTimelineEvents();
             loadTimelineRange();
             
+            // Initialize minimized area (from minwin-ip.js)
+            initMinimizedAreaEvents();
+            
             // Initialize alarm settings
             initAlarmSettings();
             
@@ -1023,25 +1061,7 @@
         function initializeEventListeners() {
             // Timeline Range Radio Buttons - settings.js로 이동됨
             // Timeline Minimize Button - timeline.js의 initTimelineEvents()로 이동됨
-
-            // Minimized Area Minimize Button
-            const minimizedAreaMinimizeBtn = document.getElementById('minimizedAreaMinimizeBtn');
-            const minimizedAreaContent = document.getElementById('minimizedAreaContent');
-            if (minimizedAreaMinimizeBtn && minimizedAreaContent) {
-                minimizedAreaMinimizeBtn.addEventListener('click', () => {
-                    const isCollapsed = minimizedAreaContent.classList.toggle('collapsed');
-                    minimizedAreaMinimizeBtn.classList.toggle('minimized', isCollapsed);
-                    
-                    // 상태 저장
-                    localStorage.setItem('minimizedAreaCollapsed', isCollapsed ? '1' : '0');
-                });
-                
-                // 저장된 상태 복원
-                if (localStorage.getItem('minimizedAreaCollapsed') === '1') {
-                    minimizedAreaContent.classList.add('collapsed');
-                    minimizedAreaMinimizeBtn.classList.add('minimized');
-                }
-            }
+            // Minimized Area Minimize Button - minwin-ip.js의 initMinimizedAreaEvents()로 이동됨
 
             // Control Buttons
             const toggleBtn = document.getElementById('toggleBtn');
@@ -1184,36 +1204,7 @@
         // Load saved header state
 
         // Save/Load visible IPs state - settings.js로 이동됨
-
-        // Save minimized state
-        function saveMinimizedState() {
-            const minimizedCards = document.querySelectorAll('.ip-card.minimized');
-            const minimizedIndices = Array.from(minimizedCards).map(card => card.dataset.index);
-            localStorage.setItem('minimizedCards', JSON.stringify(minimizedIndices));
-            console.log('최소화 상태 저장:', minimizedIndices);
-        }
-
-        // Load minimized state
-        function loadMinimizedState() {
-            const saved = localStorage.getItem('minimizedCards');
-            if (saved) {
-                try {
-                    const minimizedIndices = JSON.parse(saved);
-                    console.log('최소화 상태 로드:', minimizedIndices);
-                    
-                    setTimeout(() => {
-                        minimizedIndices.forEach(index => {
-                            const card = document.getElementById(`ip-card-${index}`);
-                            if (card && !card.classList.contains('minimized')) {
-                                toggleMinimize(parseInt(index));
-                            }
-                        });
-                    }, 100);
-                } catch (e) {
-                    console.error('최소화 상태 로드 실패:', e);
-                }
-            }
-        }
+        // saveMinimizedState, loadMinimizedState - minwin-ip.js로 이동됨
 
         // Time Update Functions
         function updateTime() {
@@ -1489,47 +1480,7 @@
             });
         }
 
-        // Toggle Minimize
-        function toggleMinimize(index) {
-            const card = document.getElementById(`ip-card-${index}`);
-            
-            if (!card) return;
-            
-            const isMinimized = card.classList.contains('minimized');
-            const ipCardsContainer = document.getElementById('ipCardsContainer');
-            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
-            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
-            
-            if (isMinimized) {
-                card.classList.remove('minimized');
-                card.draggable = true;
-                ipCardsContainer.appendChild(card);
-            } else {
-                card.classList.add('minimized');
-                card.draggable = false;
-                minimizedCardsContainer.appendChild(card);
-            }
-            
-            updateMinimizedArea();
-            saveMinimizedState();
-        }
-
-        // Update Minimized Area
-        function updateMinimizedArea() {
-            const minimizedCardsContainer = document.getElementById('minimizedCardsContainer');
-            const minimizedCardsArea = document.getElementById('minimizedCardsArea');
-            const minimizedCount = document.getElementById('minimizedCount');
-            
-            const count = minimizedCardsContainer.children.length;
-            
-            if (count > 0) {
-                minimizedCardsArea.style.display = 'block';
-            } else {
-                minimizedCardsArea.style.display = 'none';
-            }
-            
-            minimizedCount.textContent = count;
-        }
+        // toggleMinimize, updateMinimizedArea - minwin-ip.js로 이동됨
 
         // Open Detail Modal
         function openDetailModal(index) {

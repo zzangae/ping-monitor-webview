@@ -1,0 +1,25 @@
+<!-- 
+    최소화된 IP 섹션 (v2.7)
+    경로: web/minwin-ip/minwin-ip.html
+    
+    이 파일은 참조용 템플릿입니다.
+    graph.html에 직접 포함되어야 합니다.
+-->
+
+<!-- Minimized Cards Area -->
+<div id="minimizedCardsArea" class="minimized-cards-area" style="display: none;">
+    <div class="minimized-area-header">
+        <span class="minimized-area-title">📦 최소화된 IP</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="minimized-count" id="minimizedCount">0</span>
+            <button class="minimize-btn" id="minimizedAreaMinimizeBtn" title="최소화된 IP 영역 최소화/확대">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="collapsible-content" id="minimizedAreaContent">
+        <div id="minimizedCardsContainer" class="minimized-cards-container"></div>
+    </div>
+</div>
