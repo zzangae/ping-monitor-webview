@@ -1,13 +1,81 @@
 /**
  * IP 비교 타임라인 섹션 JavaScript
- * Ping Monitor v2.7
+ * Ping Monitor v2.7 - TypedArray 최적화 버전
  */
+
+// ========================================================================
+// CircularBuffer 클래스 (TypedArray 기반 - 메모리 최적화)
+// ========================================================================
+
+/**
+ * 고정 크기 순환 버퍼 (Float32Array 사용)
+ * - 배열 재할당 없음 (slice/shift 제거)
+ * - 메모리 사용량 고정 (86,400 * 4 bytes = 약 337KB per IP)
+ * - O(1) 삽입 성능
+ */
+class CircularBuffer {
+    constructor(size) {
+        this.size = size;
+        this.buffer = new Float32Array(size);  // 4 bytes per element
+        this.head = 0;      // 다음 쓰기 위치
+        this.count = 0;     // 현재 데이터 개수
+    }
+    
+    /**
+     * 데이터 추가 (O(1))
+     */
+    push(value) {
+        this.buffer[this.head] = value;
+        this.head = (this.head + 1) % this.size;
+        if (this.count < this.size) {
+            this.count++;
+        }
+    }
+    
+    /**
+     * 최근 n개 데이터 가져오기
+     * @param {number} n - 가져올 개수
+     * @returns {Array} 일반 배열 (Chart.js 호환)
+     */
+    getRecent(n) {
+        const count = Math.min(n, this.count);
+        const result = new Array(count);
+        
+        // 가장 오래된 데이터부터 순서대로
+        let readPos = (this.head - this.count + this.size) % this.size;
+        const startPos = Math.max(0, this.count - n);
+        readPos = (readPos + startPos) % this.size;
+        
+        for (let i = 0; i < count; i++) {
+            result[i] = this.buffer[readPos];
+            readPos = (readPos + 1) % this.size;
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 현재 저장된 데이터 개수
+     */
+    get length() {
+        return this.count;
+    }
+    
+    /**
+     * 버퍼 초기화
+     */
+    clear() {
+        this.buffer.fill(0);
+        this.head = 0;
+        this.count = 0;
+    }
+}
 
 // ========================================================================
 // 전역 변수 (Timeline)
 // ========================================================================
 let comparisonChart = null;
-let extendedHistory = {};  // IP별 확장 히스토리 저장 {ip: [latency, ...]}
+let extendedHistory = new Map();  // IP별 CircularBuffer 저장 {ip: CircularBuffer}
 let selectedTimeRange = 60;  // 기본 1분 (60초)
 const MAX_HISTORY_POINTS = 86400;  // 최대 24시간 (초 단위)
 
@@ -48,11 +116,17 @@ function initComparisonChart() {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
+            normalized: true,        // 데이터 정규화 (성능 향상)
+            spanGaps: true,          // null 값 건너뛰기
             plugins: {
                 legend: {
                     display: true,
                     position: 'top',
                     labels: { color: '#e4e6eb' }
+                },
+                decimation: {         // 데이터 간소화 (성능 향상)
+                    enabled: true,
+                    algorithm: 'lttb'
                 }
             },
             scales: {
@@ -69,6 +143,15 @@ function initComparisonChart() {
                 x: {
                     grid: { color: '#3a3f5c' },
                     ticks: { color: '#b0b3b8' }
+                }
+            },
+            elements: {
+                line: {
+                    borderJoinStyle: 'round'
+                },
+                point: {
+                    radius: 0,           // 기본 점 비활성화
+                    hoverRadius: 4       // 호버 시 점 표시
                 }
             }
         }
@@ -128,33 +211,25 @@ function updateComparisonChart(targets) {
             return;
         }
         
-        // 확장 히스토리 업데이트 (매번 실행)
+        // 확장 히스토리 업데이트 (CircularBuffer 사용)
         targets.forEach(target => {
             const key = target.ip;
-            if (!extendedHistory[key]) {
-                extendedHistory[key] = [];
+            if (!extendedHistory.has(key)) {
+                extendedHistory.set(key, new CircularBuffer(MAX_HISTORY_POINTS));
             }
             
-            // 최신 latency 값 추가 (초당 1개)
+            // 최신 latency 값 추가 (O(1) 연산)
             const currentLatency = target.online ? target.latency : 0;
-            extendedHistory[key].push(currentLatency);
-            
-            // 최대 포인트 수 제한 - 10% 초과 시에만 정리 (shift 빈도 감소)
-            const maxWithBuffer = Math.floor(MAX_HISTORY_POINTS * 1.1);
-            if (extendedHistory[key].length > maxWithBuffer) {
-                // 한 번에 10% 제거 (빈번한 shift 방지)
-                const removeCount = extendedHistory[key].length - MAX_HISTORY_POINTS;
-                extendedHistory[key] = extendedHistory[key].slice(removeCount);
-            }
+            extendedHistory.get(key).push(currentLatency);
         });
         
         // 사용하지 않는 IP 히스토리 정리
         const activeIPs = new Set(targets.map(t => t.ip));
-        Object.keys(extendedHistory).forEach(key => {
+        for (const key of extendedHistory.keys()) {
             if (!activeIPs.has(key)) {
-                delete extendedHistory[key];
+                extendedHistory.delete(key);
             }
-        });
+        }
         
         // 차트 업데이트 빈도 조절 (시간 범위에 따라)
         let updateInterval;
@@ -186,8 +261,9 @@ function updateComparisonChart(targets) {
             const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
             const key = target.ip;
             
-            // 확장 히스토리에서 필요한 범위만 가져오기
-            const history = extendedHistory[key] || [];
+            // CircularBuffer에서 필요한 범위만 가져오기
+            const buffer = extendedHistory.get(key);
+            const history = buffer ? buffer.getRecent(selectedTimeRange) : [];
             const displayData = getDisplayData(history, selectedTimeRange);
             
             return {
@@ -203,7 +279,10 @@ function updateComparisonChart(targets) {
             };
         });
         
-        comparisonChart.update('none');  // 애니메이션 없이 업데이트
+        // requestAnimationFrame으로 렌더링 최적화
+        requestAnimationFrame(() => {
+            comparisonChart.update('none');  // 애니메이션 없이 업데이트
+        });
         
         // 성공 시 에러 카운트 리셋
         window.chartErrorCount = 0;
@@ -446,12 +525,14 @@ function resetComparisonChart() {
         comparisonChart.data.datasets = [];
         comparisonChart.update();
     }
-    extendedHistory = {};
+    // Map 초기화 (기존 CircularBuffer 메모리 해제)
+    extendedHistory.clear();
 }
 
 // ========================================================================
 // 전역 노출 (window 객체)
 // ========================================================================
+window.CircularBuffer = CircularBuffer;  // 클래스 노출
 window.comparisonChart = comparisonChart;
 window.extendedHistory = extendedHistory;
 window.selectedTimeRange = selectedTimeRange;

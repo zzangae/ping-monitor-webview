@@ -1251,15 +1251,23 @@
                         backgroundColor: color + '30',
                         tension: 0.4,
                         fill: true,
-                        borderWidth: 2
+                        borderWidth: 2,
+                        pointRadius: 0,      // 점 비활성화 (성능 향상)
+                        pointHoverRadius: 3  // 호버 시에만 점 표시
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: false,
+                    normalized: true,        // 데이터 정규화 (성능 향상)
+                    spanGaps: true,          // null 값 건너뛰기
                     plugins: {
-                        legend: { display: false }
+                        legend: { display: false },
+                        decimation: {         // 데이터 간소화 (성능 향상)
+                            enabled: true,
+                            algorithm: 'lttb'
+                        }
                     },
                     scales: {
                         y: {
@@ -1269,6 +1277,11 @@
                         },
                         x: {
                             display: false
+                        }
+                    },
+                    elements: {
+                        line: {
+                            borderJoinStyle: 'round'  // 부드러운 선 연결
                         }
                     }
                 }
@@ -1705,15 +1718,28 @@
 
             if (ipCharts[index] && !card.classList.contains('minimized')) {
                 ipCharts[index].data.datasets[0].data = target.history;
-                ipCharts[index].update();
+                // requestAnimationFrame으로 렌더링 최적화
+                requestAnimationFrame(() => {
+                    if (ipCharts[index]) {
+                        ipCharts[index].update('none');  // 애니메이션 없이
+                    }
+                });
             }
 
+            // 패킷 바 업데이트 최적화 (DocumentFragment 사용)
             const packetsContainer = document.getElementById(`packets-${index}`);
-            if (packetsContainer) {
-                packetsContainer.innerHTML = target.history.map(latency => {
-                    const className = latency > 0 ? 'packet-bar packet-success' : 'packet-bar packet-fail';
-                    return `<div class="${className}"></div>`;
-                }).join('');
+            if (packetsContainer && target.history) {
+                const fragment = document.createDocumentFragment();
+                const historyLen = Math.min(target.history.length, 60);  // 최대 60개만 표시
+                const startIdx = Math.max(0, target.history.length - historyLen);
+                
+                for (let i = startIdx; i < target.history.length; i++) {
+                    const div = document.createElement('div');
+                    div.className = target.history[i] > 0 ? 'packet-bar packet-success' : 'packet-bar packet-fail';
+                    fragment.appendChild(div);
+                }
+                packetsContainer.innerHTML = '';
+                packetsContainer.appendChild(fragment);
             }
         }
 
