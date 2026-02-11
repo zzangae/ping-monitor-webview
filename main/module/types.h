@@ -1,5 +1,5 @@
 /**
- * Common Types and Constants
+ * Common Types and Constants (v2.7 Optimized)
  * Shared across all modules
  */
 
@@ -15,11 +15,11 @@
 // Constants
 // ============================================================================
 
-#define MAX_IP_COUNT 50
-#define MAX_HISTORY 60
+#define MAX_IP_COUNT 100 // 50 → 100 확장
+#define MAX_HISTORY 60   // 개별 IP 히스토리 (프론트엔드에서 24시간 관리)
 #define PING_TIMEOUT 2000
 
-// ⭐ 수정: 새 폴더 구조 반영
+// 파일 경로
 #define JSON_FILE L"..\\..\\data\\ping_data.json"
 #define CONFIG_FILE L"..\\..\\config\\ping_config.ini"
 #define INT_CONFIG_FILE L"..\\..\\config\\int_config.ini"
@@ -54,6 +54,19 @@
 #define DEFAULT_NOTIFY_ON_TIMEOUT 1
 #define DEFAULT_NOTIFY_ON_RECOVERY 1
 #define DEFAULT_CONSECUTIVE_FAILURES 3
+
+// ============================================================================
+// v2.7 최적화 관련 상수
+// ============================================================================
+
+// JSON 버퍼 크기 (2MB)
+#define JSON_BUFFER_SIZE (2 * 1024 * 1024)
+
+// Memory Mapped File 크기 (1MB)
+#define MMAP_FILE_SIZE (1 * 1024 * 1024)
+
+// ICMP Reply 버퍼 크기
+#define ICMP_REPLY_BUFFER_SIZE 256
 
 // ============================================================================
 // Structures
@@ -114,4 +127,4 @@ extern DWORD g_browserStartTime;
 extern NotificationSettings g_notifSettings;
 extern CRITICAL_SECTION g_logLock;
 
-#endif
+#endif // TYPES_H

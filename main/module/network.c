@@ -1,6 +1,11 @@
 /**
  * Network Module Implementation
  * ICMP ping and monitoring
+ *
+ * v2.7 최적화:
+ * - 정적 ICMP 핸들 재사용 (매번 생성/삭제 방지)
+ * - 정적 버퍼 재사용 (malloc/free 반복 방지)
+ * - JSON 버퍼 재사용
  */
 
 #include "network.h"
@@ -14,8 +19,144 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// ============================================
+// v2.7 최적화: 정적 리소스 (365일 운영 안정성)
+// ============================================
+static HANDLE s_hIcmpFile = INVALID_HANDLE_VALUE;
+static LPVOID s_replyBuffer = NULL;
+static DWORD s_replyBufferSize = 0;
+static wchar_t *s_jsonBuffer = NULL;
+static size_t s_jsonBufferSize = 0;
+static BOOL s_optimizedResourcesReady = FALSE;
+
+/**
+ * 최적화된 리소스 초기화 (최초 1회)
+ */
+static BOOL EnsureOptimizedResources(void)
+{
+    if (s_optimizedResourcesReady)
+        return TRUE;
+
+    // ICMP 핸들 생성 (재사용)
+    if (s_hIcmpFile == INVALID_HANDLE_VALUE)
+    {
+        s_hIcmpFile = IcmpCreateFile();
+        if (s_hIcmpFile == INVALID_HANDLE_VALUE)
+        {
+            return FALSE;
+        }
+    }
+
+    // Reply 버퍼 할당 (재사용)
+    if (s_replyBuffer == NULL)
+    {
+        s_replyBufferSize = sizeof(ICMP_ECHO_REPLY) + 32 + 8;
+        s_replyBuffer = malloc(s_replyBufferSize);
+        if (s_replyBuffer == NULL)
+        {
+            IcmpCloseHandle(s_hIcmpFile);
+            s_hIcmpFile = INVALID_HANDLE_VALUE;
+            return FALSE;
+        }
+    }
+
+    // JSON 버퍼 할당 (재사용)
+    if (s_jsonBuffer == NULL)
+    {
+        s_jsonBufferSize = 10 * 1024 * 1024; // 10MB
+        s_jsonBuffer = (wchar_t *)malloc(s_jsonBufferSize);
+        if (s_jsonBuffer == NULL)
+        {
+            free(s_replyBuffer);
+            s_replyBuffer = NULL;
+            IcmpCloseHandle(s_hIcmpFile);
+            s_hIcmpFile = INVALID_HANDLE_VALUE;
+            return FALSE;
+        }
+    }
+
+    s_optimizedResourcesReady = TRUE;
+    return TRUE;
+}
+
+/**
+ * 최적화된 리소스 정리 (프로그램 종료 시)
+ */
+void CleanupNetworkModule(void)
+{
+    if (s_jsonBuffer)
+    {
+        free(s_jsonBuffer);
+        s_jsonBuffer = NULL;
+    }
+
+    if (s_replyBuffer)
+    {
+        free(s_replyBuffer);
+        s_replyBuffer = NULL;
+    }
+
+    if (s_hIcmpFile != INVALID_HANDLE_VALUE)
+    {
+        IcmpCloseHandle(s_hIcmpFile);
+        s_hIcmpFile = INVALID_HANDLE_VALUE;
+    }
+
+    s_optimizedResourcesReady = FALSE;
+}
+
+/**
+ * 네트워크 모듈 초기화
+ */
+BOOL InitNetworkModule(void)
+{
+    return EnsureOptimizedResources();
+}
+
+// ============================================
+// 기존 코드 (원본 유지)
+// ============================================
+
 BOOL DoPing(const wchar_t *ip, DWORD *latency)
 {
+    // v2.7: 최적화된 경로 시도
+    if (EnsureOptimizedResources())
+    {
+        char ipStr[64];
+        WideCharToMultiByte(CP_UTF8, 0, ip, -1, ipStr, sizeof(ipStr), NULL, NULL);
+
+        unsigned long ipAddr = inet_addr(ipStr);
+        if (ipAddr == INADDR_NONE)
+        {
+            return FALSE;
+        }
+
+        char sendData[32] = "PingMonitorData";
+
+        DWORD result = IcmpSendEcho(
+            s_hIcmpFile,
+            ipAddr,
+            sendData,
+            sizeof(sendData),
+            NULL,
+            s_replyBuffer,
+            s_replyBufferSize,
+            PING_TIMEOUT);
+
+        if (result != 0)
+        {
+            PICMP_ECHO_REPLY pEchoReply = (PICMP_ECHO_REPLY)s_replyBuffer;
+            if (pEchoReply->Status == IP_SUCCESS)
+            {
+                *latency = pEchoReply->RoundTripTime;
+                return TRUE;
+            }
+        }
+
+        return FALSE;
+    }
+
+    // Fallback: 기존 방식 (최적화 실패 시)
     HANDLE hIcmpFile = IcmpCreateFile();
     if (hIcmpFile == INVALID_HANDLE_VALUE)
     {
@@ -176,12 +317,25 @@ void SendDataToWebView(void)
     swprintf(jsonPath, MAX_PATH, L"%s\\data\\ping_data.json", exeDir);
     swprintf(tmpPath, MAX_PATH, L"%s\\data\\ping_data.json.tmp", exeDir);
 
-    size_t bufferSize = 10 * 1024 * 1024;
-    wchar_t *jsonData = (wchar_t *)malloc(bufferSize);
-    if (!jsonData)
-        return;
+    // v2.7: 정적 버퍼 사용 (최적화)
+    wchar_t *jsonData = NULL;
+    BOOL useStaticBuffer = FALSE;
 
-    BuildJsonData(jsonData, bufferSize / sizeof(wchar_t));
+    if (EnsureOptimizedResources() && s_jsonBuffer)
+    {
+        jsonData = s_jsonBuffer;
+        useStaticBuffer = TRUE;
+    }
+    else
+    {
+        // Fallback: 동적 할당
+        size_t bufferSize = 10 * 1024 * 1024;
+        jsonData = (wchar_t *)malloc(bufferSize);
+        if (!jsonData)
+            return;
+    }
+
+    BuildJsonData(jsonData, (useStaticBuffer ? s_jsonBufferSize : 10 * 1024 * 1024) / sizeof(wchar_t));
 
     FILE *tmpFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
     if (tmpFile)
@@ -193,11 +347,18 @@ void SendDataToWebView(void)
         MoveFileW(tmpPath, jsonPath);
     }
 
-    free(jsonData);
+    // 동적 할당한 경우만 해제
+    if (!useStaticBuffer && jsonData)
+    {
+        free(jsonData);
+    }
 }
 
 DWORD WINAPI MonitoringThread(LPVOID lpParam)
 {
+    // v2.7: 모니터링 시작 시 리소스 초기화
+    EnsureOptimizedResources();
+
     while (g_isRunning)
     {
         for (int i = 0; i < g_targetCount; i++)

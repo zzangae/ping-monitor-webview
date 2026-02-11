@@ -1,4 +1,4 @@
-// ping_monitor_webview.c - Main Entry Point (Modularized v2.6)
+// ping_monitor_webview.c - Main Entry Point (Modularized v2.7 Optimized)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -282,7 +282,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 // ============================================================================
-// Main Entry Point
+// Main Entry Point (v2.7 Optimized)
 // ============================================================================
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
@@ -298,8 +298,18 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     InitOutageSystem();
     InitNotificationSystem();
 
+    // v2.7: 네트워크 모듈 초기화 (ICMP 핸들, 버퍼 할당)
+    if (!InitNetworkModule())
+    {
+        MessageBoxW(NULL, L"네트워크 모듈 초기화 실패", L"오류", MB_OK | MB_ICONERROR);
+        DeleteCriticalSection(&g_logLock);
+        WSACleanup();
+        return 1;
+    }
+
     if (!CheckRequiredFiles())
     {
+        CleanupNetworkModule(); // v2.7: 정리
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -322,6 +332,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     if (g_targetCount == 0)
     {
         MessageBoxW(NULL, L"설정 파일에 IP가 없습니다.", L"오류", MB_OK | MB_ICONERROR);
+        CleanupNetworkModule(); // v2.7: 정리
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -346,6 +357,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
             else
             {
                 MessageBoxW(NULL, L"HTTP 서버 시작 실패", L"오류", MB_OK | MB_ICONERROR);
+                CleanupNetworkModule(); // v2.7: 정리
                 DeleteCriticalSection(&g_logLock);
                 WSACleanup();
                 return 1;
@@ -359,6 +371,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
                      L"포트 %d-%d 범위에서 사용 가능한 포트를 찾을 수 없습니다.",
                      HTTP_PORT_MIN, HTTP_PORT_MAX);
             MessageBoxW(NULL, errorMsg, L"오류", MB_OK | MB_ICONERROR);
+            CleanupNetworkModule(); // v2.7: 정리
             DeleteCriticalSection(&g_logLock);
             WSACleanup();
             return 1;
@@ -379,6 +392,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     {
         MessageBoxW(NULL, L"윈도우 클래스 등록 실패", L"오류", MB_OK | MB_ICONERROR);
         StopHttpServer();
+        CleanupNetworkModule(); // v2.7: 정리
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -396,6 +410,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     {
         MessageBoxW(NULL, L"윈도우 생성 실패", L"오류", MB_OK | MB_ICONERROR);
         StopHttpServer();
+        CleanupNetworkModule(); // v2.7: 정리
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -421,9 +436,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         DispatchMessage(&msg);
     }
 
+    // v2.7: 정리 순서 최적화
     StopMonitoring();
     StopHttpServer();
+    CleanupNetworkModule(); // v2.7: 네트워크 모듈 정리
     CleanupNotificationSystem();
+    CleanupOutageSystem(); // v2.7: 장애 관리 시스템 정리
     DeleteCriticalSection(&g_logLock);
     WSACleanup();
 
