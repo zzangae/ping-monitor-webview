@@ -106,84 +106,139 @@ function initTimelineEvents() {
 
 // 마지막 차트 업데이트 시간 (전역으로 관리)
 window.lastChartUpdate = 0;
+window.chartErrorCount = 0;  // 에러 카운트
+window.lastChartReset = Date.now();  // 마지막 차트 리셋 시간
 
 /**
  * 비교 차트 업데이트 (v2.7 - Extended Timeline Support)
  * @param {Array} targets - 핑 대상 배열
  */
 function updateComparisonChart(targets) {
-    if (!comparisonChart || !targets) return;
-    
-    const now = Date.now();
-    
-    // 확장 히스토리 업데이트 (매번 실행)
-    targets.forEach(target => {
-        const key = target.ip;
-        if (!extendedHistory[key]) {
-            extendedHistory[key] = [];
+    try {
+        if (!comparisonChart || !targets) return;
+        
+        const now = Date.now();
+        
+        // 12시간마다 차트 인스턴스 재생성 (메모리 누수 방지)
+        const hoursSinceReset = (now - window.lastChartReset) / (1000 * 60 * 60);
+        if (hoursSinceReset >= 12) {
+            console.log('12시간 경과 - 차트 인스턴스 재생성');
+            resetChartInstance();
+            window.lastChartReset = now;
+            return;
         }
         
-        // 최신 latency 값 추가 (초당 1개)
-        const currentLatency = target.online ? target.latency : 0;
-        extendedHistory[key].push(currentLatency);
+        // 확장 히스토리 업데이트 (매번 실행)
+        targets.forEach(target => {
+            const key = target.ip;
+            if (!extendedHistory[key]) {
+                extendedHistory[key] = [];
+            }
+            
+            // 최신 latency 값 추가 (초당 1개)
+            const currentLatency = target.online ? target.latency : 0;
+            extendedHistory[key].push(currentLatency);
+            
+            // 최대 포인트 수 제한 - 10% 초과 시에만 정리 (shift 빈도 감소)
+            const maxWithBuffer = Math.floor(MAX_HISTORY_POINTS * 1.1);
+            if (extendedHistory[key].length > maxWithBuffer) {
+                // 한 번에 10% 제거 (빈번한 shift 방지)
+                const removeCount = extendedHistory[key].length - MAX_HISTORY_POINTS;
+                extendedHistory[key] = extendedHistory[key].slice(removeCount);
+            }
+        });
         
-        // 최대 포인트 수 제한 - 10% 초과 시에만 정리 (shift 빈도 감소)
-        const maxWithBuffer = Math.floor(MAX_HISTORY_POINTS * 1.1);
-        if (extendedHistory[key].length > maxWithBuffer) {
-            // 한 번에 10% 제거 (빈번한 shift 방지)
-            const removeCount = extendedHistory[key].length - MAX_HISTORY_POINTS;
-            extendedHistory[key] = extendedHistory[key].slice(removeCount);
+        // 사용하지 않는 IP 히스토리 정리
+        const activeIPs = new Set(targets.map(t => t.ip));
+        Object.keys(extendedHistory).forEach(key => {
+            if (!activeIPs.has(key)) {
+                delete extendedHistory[key];
+            }
+        });
+        
+        // 차트 업데이트 빈도 조절 (시간 범위에 따라)
+        let updateInterval;
+        if (selectedTimeRange <= 60) {
+            updateInterval = 1000;       // 1분 이하: 매초
+        } else if (selectedTimeRange <= 300) {
+            updateInterval = 2000;       // 5분 이하: 2초마다
+        } else if (selectedTimeRange <= 1800) {
+            updateInterval = 5000;       // 30분 이하: 5초마다
+        } else if (selectedTimeRange <= 3600) {
+            updateInterval = 10000;      // 1시간 이하: 10초마다
+        } else {
+            updateInterval = 30000;      // 1시간 초과: 30초마다
         }
-    });
-    
-    // 차트 업데이트 빈도 조절 (시간 범위에 따라)
-    let updateInterval;
-    if (selectedTimeRange <= 60) {
-        updateInterval = 1000;       // 1분 이하: 매초
-    } else if (selectedTimeRange <= 300) {
-        updateInterval = 2000;       // 5분 이하: 2초마다
-    } else if (selectedTimeRange <= 1800) {
-        updateInterval = 5000;       // 30분 이하: 5초마다
-    } else if (selectedTimeRange <= 3600) {
-        updateInterval = 10000;      // 1시간 이하: 10초마다
-    } else {
-        updateInterval = 30000;      // 1시간 초과: 30초마다
-    }
-    
-    // 업데이트 간격 확인
-    if (now - window.lastChartUpdate < updateInterval) {
-        return;  // 아직 업데이트 시간이 안 됨
-    }
-    window.lastChartUpdate = now;
-    
-    // 시간 범위에 따른 레이블 생성
-    const labels = generateTimeLabels(selectedTimeRange);
-    comparisonChart.data.labels = labels;
-    
-    const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
-    
-    comparisonChart.data.datasets = filteredTargets.map((target) => {
-        const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
-        const key = target.ip;
         
-        // 확장 히스토리에서 필요한 범위만 가져오기
-        const history = extendedHistory[key] || [];
-        const displayData = getDisplayData(history, selectedTimeRange);
+        // 업데이트 간격 확인
+        if (now - window.lastChartUpdate < updateInterval) {
+            return;  // 아직 업데이트 시간이 안 됨
+        }
+        window.lastChartUpdate = now;
         
-        return {
-            label: target.name,
-            data: displayData,
-            borderColor: brightColors[originalIndex % brightColors.length],
-            backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
-            tension: 0.4,
-            borderWidth: 2,
-            fill: false,
-            pointRadius: selectedTimeRange <= 300 ? 2 : 0,  // 5분 이하면 점 표시
-            pointHoverRadius: 4
-        };
-    });
-    
-    comparisonChart.update('none');  // 애니메이션 없이 업데이트
+        // 시간 범위에 따른 레이블 생성
+        const labels = generateTimeLabels(selectedTimeRange);
+        comparisonChart.data.labels = labels;
+        
+        const filteredTargets = targets.filter((target, index) => visibleIPs.has(index));
+        
+        comparisonChart.data.datasets = filteredTargets.map((target) => {
+            const originalIndex = targets.findIndex(t => t.ip === target.ip && t.name === target.name);
+            const key = target.ip;
+            
+            // 확장 히스토리에서 필요한 범위만 가져오기
+            const history = extendedHistory[key] || [];
+            const displayData = getDisplayData(history, selectedTimeRange);
+            
+            return {
+                label: target.name,
+                data: displayData,
+                borderColor: brightColors[originalIndex % brightColors.length],
+                backgroundColor: brightColors[originalIndex % brightColors.length] + '20',
+                tension: 0.4,
+                borderWidth: 2,
+                fill: false,
+                pointRadius: selectedTimeRange <= 300 ? 2 : 0,  // 5분 이하면 점 표시
+                pointHoverRadius: 4
+            };
+        });
+        
+        comparisonChart.update('none');  // 애니메이션 없이 업데이트
+        
+        // 성공 시 에러 카운트 리셋
+        window.chartErrorCount = 0;
+        
+    } catch (error) {
+        console.error('차트 업데이트 오류:', error);
+        window.chartErrorCount++;
+        
+        // 연속 5회 에러 시 차트 재생성
+        if (window.chartErrorCount >= 5) {
+            console.log('연속 에러 발생 - 차트 인스턴스 재생성 시도');
+            resetChartInstance();
+            window.chartErrorCount = 0;
+        }
+    }
+}
+
+/**
+ * 차트 인스턴스 재생성 (메모리 정리)
+ */
+function resetChartInstance() {
+    try {
+        if (comparisonChart) {
+            comparisonChart.destroy();
+            comparisonChart = null;
+        }
+        
+        // 잠시 후 재생성
+        setTimeout(() => {
+            initComparisonChart();
+            console.log('차트 인스턴스 재생성 완료');
+        }, 100);
+    } catch (error) {
+        console.error('차트 재생성 오류:', error);
+    }
 }
 
 /**
@@ -416,3 +471,4 @@ window.loadTimelineRange = loadTimelineRange;
 window.saveVisibleIPsState = saveVisibleIPsState;
 window.loadVisibleIPsState = loadVisibleIPsState;
 window.resetComparisonChart = resetComparisonChart;
+window.resetChartInstance = resetChartInstance;
