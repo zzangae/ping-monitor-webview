@@ -18,11 +18,11 @@
 // ============================================
 // v2.7 로그 로테이션 설정
 // ============================================
-#define MAX_LOG_SIZE_MB 5 // 최대 로그 파일 크기 (MB)
+#define MAX_LOG_SIZE_MB 5
 #define MAX_LOG_SIZE_BYTES (MAX_LOG_SIZE_MB * 1024 * 1024)
-#define MAX_BACKUP_COUNT 3           // 백업 파일 개수
-#define BACKUP_RETENTION_DAYS 30     // 백업 보관 기간 (일)
-#define ROTATION_CHECK_INTERVAL 3600 // 로테이션 체크 간격 (초)
+#define MAX_BACKUP_COUNT 3
+#define BACKUP_RETENTION_DAYS 30
+#define ROTATION_CHECK_INTERVAL 3600
 
 static time_t s_lastRotationCheck = 0;
 
@@ -67,9 +67,6 @@ void ParseIPGroup(const wchar_t *ip, const wchar_t *configPath, wchar_t *group, 
 // v2.7 로그 로테이션 함수
 // ============================================
 
-/**
- * 파일 크기 확인 (바이트)
- */
 static long long GetFileSizeBytes(const wchar_t *filePath)
 {
     struct _stat64 st;
@@ -80,9 +77,6 @@ static long long GetFileSizeBytes(const wchar_t *filePath)
     return 0;
 }
 
-/**
- * 파일 수정 시간 확인
- */
 static time_t GetFileModTime(const wchar_t *filePath)
 {
     struct _stat64 st;
@@ -93,20 +87,16 @@ static time_t GetFileModTime(const wchar_t *filePath)
     return 0;
 }
 
-/**
- * 단일 로그 파일 로테이션
- * log.json → log.json.1 → log.json.2 → log.json.3 (삭제)
- */
 static void RotateLogFile(const wchar_t *logPath)
 {
     wchar_t backupPath[MAX_PATH];
     wchar_t oldBackupPath[MAX_PATH];
 
-    // 가장 오래된 백업 삭제 (log.json.3)
+    // 가장 오래된 백업 삭제
     swprintf(backupPath, MAX_PATH, L"%s.%d", logPath, MAX_BACKUP_COUNT);
     DeleteFileW(backupPath);
 
-    // 백업 파일들 이름 변경 (3 ← 2 ← 1)
+    // 백업 파일들 이름 변경
     for (int i = MAX_BACKUP_COUNT - 1; i >= 1; i--)
     {
         swprintf(oldBackupPath, MAX_PATH, L"%s.%d", logPath, i);
@@ -121,9 +111,6 @@ static void RotateLogFile(const wchar_t *logPath)
     wprintf(L"[로그 로테이션] %s → %s.1\n", logPath, logPath);
 }
 
-/**
- * 오래된 백업 파일 정리 (단일 로그 파일용 - 내부)
- */
 static void CleanupOldBackupsForLog(const wchar_t *logPath)
 {
     time_t now = time(NULL);
@@ -146,9 +133,6 @@ static void CleanupOldBackupsForLog(const wchar_t *logPath)
     }
 }
 
-/**
- * 로그 파일 로테이션 필요 여부 확인 및 실행
- */
 static void CheckAndRotateLog(const wchar_t *logPath)
 {
     long long fileSize = GetFileSizeBytes(logPath);
@@ -159,14 +143,10 @@ static void CheckAndRotateLog(const wchar_t *logPath)
     }
 }
 
-/**
- * 모든 로그 파일 로테이션 체크 (1시간마다)
- */
 void CheckAllLogsRotation(void)
 {
     time_t now = time(NULL);
 
-    // 1시간마다만 체크
     if (difftime(now, s_lastRotationCheck) < ROTATION_CHECK_INTERVAL)
     {
         return;
@@ -180,12 +160,10 @@ void CheckAllLogsRotation(void)
 
     wchar_t logPath[MAX_PATH];
 
-    // outage_log.json 로테이션 체크
     swprintf(logPath, MAX_PATH, L"%s\\data\\outage_log.json", exeDir);
     CheckAndRotateLog(logPath);
     CleanupOldBackupsForLog(logPath);
 
-    // notification_log.json 로테이션 체크
     swprintf(logPath, MAX_PATH, L"%s\\data\\notification_log.json", exeDir);
     CheckAndRotateLog(logPath);
     CleanupOldBackupsForLog(logPath);
@@ -199,7 +177,6 @@ void UpdateTargetOutageStatus(OutageTarget *target, BOOL pingSuccess)
 {
     time_t now = time(NULL);
 
-    // v2.7: 주기적 로테이션 체크
     CheckAllLogsRotation();
 
     if (pingSuccess)
@@ -243,7 +220,6 @@ void RecordOutageStart(OutageTarget *target, time_t startTime)
     wchar_t logPath[MAX_PATH];
     swprintf(logPath, MAX_PATH, L"%s\\data\\outage_log.json", exeDir);
 
-    // v2.7: 기록 전 로테이션 체크
     CheckAndRotateLog(logPath);
 
     FILE *fp = _wfopen(logPath, L"a, ccs=UTF-8");
@@ -268,7 +244,6 @@ void RecordOutageEnd(OutageTarget *target, time_t endTime)
     wchar_t logPath[MAX_PATH];
     swprintf(logPath, MAX_PATH, L"%s\\data\\outage_log.json", exeDir);
 
-    // v2.7: 기록 전 로테이션 체크
     CheckAndRotateLog(logPath);
 
     FILE *fp = _wfopen(logPath, L"a, ccs=UTF-8");
@@ -282,17 +257,11 @@ void RecordOutageEnd(OutageTarget *target, time_t endTime)
     LeaveCriticalSection(&g_outageLock);
 }
 
-/**
- * v2.7: 미응답 시스템 정리 (프로그램 종료 시)
- */
 void CleanupOutageSystem(void)
 {
     DeleteCriticalSection(&g_outageLock);
 }
 
-/**
- * v2.7: 오래된 백업 파일 정리 (30일 이상) - Public
- */
 void CleanupOldBackups(void)
 {
     wchar_t exeDir[MAX_PATH];
@@ -308,9 +277,6 @@ void CleanupOldBackups(void)
     CleanupOldBackupsForLog(logPath);
 }
 
-/**
- * v2.7: 강제 로그 로테이션 (수동 호출)
- */
 void ForceLogRotation(void)
 {
     wchar_t exeDir[MAX_PATH];

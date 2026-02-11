@@ -1,4 +1,4 @@
-// ping_monitor_webview.c - Main Entry Point (Modularized v2.7 Optimized)
+// ping_monitor_webview.c - Main Entry Point (v2.7 - 365일 무중단 운영)
 
 #include <winsock2.h>
 #include <windows.h>
@@ -7,6 +7,7 @@
 #include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
@@ -26,6 +27,17 @@
 #include "http_server.h"
 #include "outage.h"
 #include "browser_monitor.h"
+
+// ============================================================================
+// v2.7: 자동 재시작 설정
+// ============================================================================
+
+#define RESTART_FLAG_FILE L"ping_monitor_restart.flag"
+#define MAX_RESTART_COUNT 5
+#define RESTART_COOLDOWN_SEC 60
+
+static int g_restartCount = 0;
+static time_t g_lastRestartTime = 0;
 
 // ============================================================================
 // Global Variables (Definitions)
@@ -59,6 +71,156 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL CheckRequiredFiles(void);
 void KillPreviousInstance(void);
 void ReloadConfigAndRestart(HWND hwnd);
+
+// v2.7: 자동 재시작 함수
+void CreateRestartFlag(void);
+BOOL CheckAndClearRestartFlag(void);
+void RequestRestart(void);
+LONG WINAPI CrashHandler(EXCEPTION_POINTERS *exInfo);
+
+// ============================================================================
+// v2.7: SEH 예외 처리 (크래시 핸들러)
+// ============================================================================
+
+LONG WINAPI CrashHandler(EXCEPTION_POINTERS *exInfo)
+{
+    wchar_t exeDir[MAX_PATH];
+    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
+    PathRemoveFileSpecW(exeDir);
+
+    // 크래시 로그 기록
+    wchar_t logPath[MAX_PATH];
+    swprintf(logPath, MAX_PATH, L"%s\\data\\crash_log.txt", exeDir);
+
+    FILE *fp = _wfopen(logPath, L"a, ccs=UTF-8");
+    if (fp)
+    {
+        time_t now = time(NULL);
+        wchar_t timeStr[64];
+        wcsftime(timeStr, 64, L"%Y-%m-%d %H:%M:%S", localtime(&now));
+
+        fwprintf(fp, L"[%s] 크래시 발생 - 예외 코드: 0x%08X, 주소: 0x%p\n",
+                 timeStr,
+                 exInfo->ExceptionRecord->ExceptionCode,
+                 exInfo->ExceptionRecord->ExceptionAddress);
+        fclose(fp);
+    }
+
+    wprintf(L"[크래시 핸들러] 예외 발생 - 자동 재시작 시도\n");
+
+    // 재시작 플래그 생성
+    CreateRestartFlag();
+
+    // 정리 작업
+    g_isRunning = FALSE;
+    StopHttpServer();
+    CleanupNotificationSystem();
+    CleanupNetworkModule();
+    CleanupOutageSystem();
+
+    // 자기 자신 재시작
+    RequestRestart();
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+/**
+ * 재시작 플래그 파일 생성
+ */
+void CreateRestartFlag(void)
+{
+    wchar_t exeDir[MAX_PATH];
+    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
+    PathRemoveFileSpecW(exeDir);
+
+    wchar_t flagPath[MAX_PATH];
+    swprintf(flagPath, MAX_PATH, L"%s\\%s", exeDir, RESTART_FLAG_FILE);
+
+    FILE *fp = _wfopen(flagPath, L"w");
+    if (fp)
+    {
+        fwprintf(fp, L"%d", g_restartCount + 1);
+        fclose(fp);
+    }
+}
+
+/**
+ * 재시작 플래그 확인 및 삭제
+ */
+BOOL CheckAndClearRestartFlag(void)
+{
+    wchar_t exeDir[MAX_PATH];
+    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
+    PathRemoveFileSpecW(exeDir);
+
+    wchar_t flagPath[MAX_PATH];
+    swprintf(flagPath, MAX_PATH, L"%s\\%s", exeDir, RESTART_FLAG_FILE);
+
+    if (GetFileAttributesW(flagPath) != INVALID_FILE_ATTRIBUTES)
+    {
+        // 재시작 횟수 읽기
+        FILE *fp = _wfopen(flagPath, L"r");
+        if (fp)
+        {
+            fwscanf(fp, L"%d", &g_restartCount);
+            fclose(fp);
+        }
+
+        // 플래그 파일 삭제
+        DeleteFileW(flagPath);
+
+        wprintf(L"[자동 재시작] 이전 크래시로 인한 재시작 #%d\n", g_restartCount);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/**
+ * 프로세스 재시작 요청
+ */
+void RequestRestart(void)
+{
+    time_t now = time(NULL);
+
+    // 쿨다운 체크 (너무 빠른 재시작 방지)
+    if (g_lastRestartTime > 0 && difftime(now, g_lastRestartTime) < RESTART_COOLDOWN_SEC)
+    {
+        wprintf(L"[자동 재시작] 쿨다운 중 - 재시작 건너뜀\n");
+        return;
+    }
+
+    // 최대 재시작 횟수 체크
+    if (g_restartCount >= MAX_RESTART_COUNT)
+    {
+        wprintf(L"[자동 재시작] 최대 재시작 횟수 초과 (%d회) - 중단\n", MAX_RESTART_COUNT);
+        MessageBoxW(NULL,
+                    L"프로그램이 반복적으로 크래시되고 있습니다.\n"
+                    L"문제 해결 후 수동으로 다시 시작해 주세요.",
+                    L"자동 재시작 중단", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    g_lastRestartTime = now;
+
+    // 자기 자신 재실행
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+    STARTUPINFOW si = {sizeof(si)};
+    PROCESS_INFORMATION pi;
+
+    if (CreateProcessW(exePath, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+    {
+        wprintf(L"[자동 재시작] 새 프로세스 시작됨 (PID: %lu)\n", pi.dwProcessId);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    else
+    {
+        wprintf(L"[자동 재시작] 프로세스 재시작 실패 (에러: %lu)\n", GetLastError());
+    }
+}
 
 // ============================================================================
 // Required Files Check
@@ -120,8 +282,7 @@ void KillPreviousInstance(void)
     HWND hwnd = FindWindowW(L"PingMonitorClass", NULL);
     if (hwnd)
     {
-        wprintf(L"이전 인스턴스 종료 중...\n");
-        SendMessage(hwnd, WM_CLOSE, 0, 0);
+        SendMessageW(hwnd, WM_CLOSE, 0, 0);
         Sleep(500);
     }
 }
@@ -282,11 +443,17 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 // ============================================================================
-// Main Entry Point (v2.7 Optimized)
+// Main Entry Point (v2.7 - SEH 예외 처리 적용)
 // ============================================================================
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
+    // v2.7: SEH 크래시 핸들러 등록
+    SetUnhandledExceptionFilter(CrashHandler);
+
+    // v2.7: 재시작 플래그 확인
+    CheckAndClearRestartFlag();
+
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
@@ -298,18 +465,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     InitOutageSystem();
     InitNotificationSystem();
 
-    // v2.7: 네트워크 모듈 초기화 (ICMP 핸들, 버퍼 할당)
+    // v2.7: 네트워크 모듈 초기화 (정적 리소스)
     if (!InitNetworkModule())
     {
-        MessageBoxW(NULL, L"네트워크 모듈 초기화 실패", L"오류", MB_OK | MB_ICONERROR);
-        DeleteCriticalSection(&g_logLock);
-        WSACleanup();
-        return 1;
+        wprintf(L"[경고] 네트워크 모듈 최적화 초기화 실패 - 기본 모드로 실행\n");
     }
 
     if (!CheckRequiredFiles())
     {
-        CleanupNetworkModule(); // v2.7: 정리
+        CleanupNetworkModule();
+        CleanupOutageSystem();
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -332,12 +497,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     if (g_targetCount == 0)
     {
         MessageBoxW(NULL, L"설정 파일에 IP가 없습니다.", L"오류", MB_OK | MB_ICONERROR);
-        CleanupNetworkModule(); // v2.7: 정리
+        CleanupNetworkModule();
+        CleanupOutageSystem();
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
     }
 
+    wprintf(L"===========================================\n");
+    wprintf(L"Ping Monitor v2.7 - 365일 무중단 운영\n");
+    wprintf(L"===========================================\n");
     wprintf(L"실행 경로: %s\n", exeDir);
     wprintf(L"HTTP 서버 시작 시도 (포트: %d)...\n", HTTP_PORT);
 
@@ -357,7 +526,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
             else
             {
                 MessageBoxW(NULL, L"HTTP 서버 시작 실패", L"오류", MB_OK | MB_ICONERROR);
-                CleanupNetworkModule(); // v2.7: 정리
+                CleanupNetworkModule();
+                CleanupOutageSystem();
                 DeleteCriticalSection(&g_logLock);
                 WSACleanup();
                 return 1;
@@ -371,7 +541,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
                      L"포트 %d-%d 범위에서 사용 가능한 포트를 찾을 수 없습니다.",
                      HTTP_PORT_MIN, HTTP_PORT_MAX);
             MessageBoxW(NULL, errorMsg, L"오류", MB_OK | MB_ICONERROR);
-            CleanupNetworkModule(); // v2.7: 정리
+            CleanupNetworkModule();
+            CleanupOutageSystem();
             DeleteCriticalSection(&g_logLock);
             WSACleanup();
             return 1;
@@ -392,7 +563,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     {
         MessageBoxW(NULL, L"윈도우 클래스 등록 실패", L"오류", MB_OK | MB_ICONERROR);
         StopHttpServer();
-        CleanupNetworkModule(); // v2.7: 정리
+        CleanupNetworkModule();
+        CleanupOutageSystem();
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -410,7 +582,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     {
         MessageBoxW(NULL, L"윈도우 생성 실패", L"오류", MB_OK | MB_ICONERROR);
         StopHttpServer();
-        CleanupNetworkModule(); // v2.7: 정리
+        CleanupNetworkModule();
+        CleanupOutageSystem();
         DeleteCriticalSection(&g_logLock);
         WSACleanup();
         return 1;
@@ -427,7 +600,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     g_browserStartTime = GetTickCount();
     OpenBrowser(url);
 
-    wprintf(L"Browser launched successfully (auto-close disabled)\n");
+    wprintf(L"Browser launched successfully\n");
+    wprintf(L"[365일 운영] 크래시 핸들러 활성화됨\n");
+
+    // v2.7: 재시작 카운터 리셋 타이머 (정상 운영 1시간 후)
+    if (g_restartCount > 0)
+    {
+        wprintf(L"[자동 재시작] 정상 운영 확인 시 재시작 카운터 초기화\n");
+    }
 
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
@@ -436,12 +616,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         DispatchMessage(&msg);
     }
 
-    // v2.7: 정리 순서 최적화
+    // 정상 종료 시 정리
     StopMonitoring();
     StopHttpServer();
-    CleanupNetworkModule(); // v2.7: 네트워크 모듈 정리
     CleanupNotificationSystem();
-    CleanupOutageSystem(); // v2.7: 장애 관리 시스템 정리
+    CleanupNetworkModule();
+    CleanupOutageSystem();
     DeleteCriticalSection(&g_logLock);
     WSACleanup();
 

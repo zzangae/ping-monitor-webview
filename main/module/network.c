@@ -6,6 +6,7 @@
  * - 정적 ICMP 핸들 재사용 (매번 생성/삭제 방지)
  * - 정적 버퍼 재사용 (malloc/free 반복 방지)
  * - JSON 버퍼 재사용
+ * - 24시간 핸들 갱신 워치독
  */
 
 #include "network.h"
@@ -29,6 +30,18 @@ static wchar_t *s_jsonBuffer = NULL;
 static size_t s_jsonBufferSize = 0;
 static BOOL s_optimizedResourcesReady = FALSE;
 
+// ============================================
+// v2.7 워치독: 핸들 갱신 (365일 무중단)
+// ============================================
+#define HANDLE_REFRESH_INTERVAL_HOURS 24
+#define HANDLE_REFRESH_INTERVAL_SEC (HANDLE_REFRESH_INTERVAL_HOURS * 60 * 60)
+#define PING_FAILURE_THRESHOLD 100 // 연속 실패 시 핸들 갱신
+
+static time_t s_lastHandleRefresh = 0;
+static int s_consecutivePingFailures = 0;
+static DWORD s_totalPingCount = 0;
+static DWORD s_totalPingSuccess = 0;
+
 /**
  * 최적화된 리소스 초기화 (최초 1회)
  */
@@ -45,6 +58,7 @@ static BOOL EnsureOptimizedResources(void)
         {
             return FALSE;
         }
+        s_lastHandleRefresh = time(NULL);
     }
 
     // Reply 버퍼 할당 (재사용)
@@ -77,6 +91,67 @@ static BOOL EnsureOptimizedResources(void)
 
     s_optimizedResourcesReady = TRUE;
     return TRUE;
+}
+
+/**
+ * v2.7 워치독: ICMP 핸들 강제 갱신
+ */
+static void RefreshIcmpHandle(void)
+{
+    wprintf(L"[워치독] ICMP 핸들 갱신 시작...\n");
+
+    if (s_hIcmpFile != INVALID_HANDLE_VALUE)
+    {
+        IcmpCloseHandle(s_hIcmpFile);
+        s_hIcmpFile = INVALID_HANDLE_VALUE;
+    }
+
+    s_hIcmpFile = IcmpCreateFile();
+    if (s_hIcmpFile != INVALID_HANDLE_VALUE)
+    {
+        s_lastHandleRefresh = time(NULL);
+        s_consecutivePingFailures = 0;
+        wprintf(L"[워치독] ICMP 핸들 갱신 완료\n");
+    }
+    else
+    {
+        wprintf(L"[워치독] ICMP 핸들 갱신 실패!\n");
+    }
+}
+
+/**
+ * v2.7 워치독: 핸들 상태 체크 및 갱신
+ */
+static void CheckAndRefreshHandle(BOOL pingSuccess)
+{
+    time_t now = time(NULL);
+
+    s_totalPingCount++;
+    if (pingSuccess)
+    {
+        s_totalPingSuccess++;
+        s_consecutivePingFailures = 0;
+    }
+    else
+    {
+        s_consecutivePingFailures++;
+    }
+
+    // 조건 1: 24시간 경과
+    if (difftime(now, s_lastHandleRefresh) >= HANDLE_REFRESH_INTERVAL_SEC)
+    {
+        wprintf(L"[워치독] 24시간 경과 - 핸들 갱신\n");
+        RefreshIcmpHandle();
+        return;
+    }
+
+    // 조건 2: 연속 실패 임계값 초과
+    if (s_consecutivePingFailures >= PING_FAILURE_THRESHOLD)
+    {
+        wprintf(L"[워치독] 연속 %d회 실패 - 핸들 갱신\n", s_consecutivePingFailures);
+        RefreshIcmpHandle();
+        return;
+    }
 }
 
 /**
@@ -119,6 +194,8 @@ BOOL InitNetworkModule(void)
 
 BOOL DoPing(const wchar_t *ip, DWORD *latency)
 {
+    BOOL success = FALSE;
+
     // v2.7: 최적화된 경로 시도
     if (EnsureOptimizedResources())
     {
@@ -128,6 +205,7 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
         unsigned long ipAddr = inet_addr(ipStr);
         if (ipAddr == INADDR_NONE)
         {
+            CheckAndRefreshHandle(FALSE);
             return FALSE;
         }
 
@@ -149,11 +227,14 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
             if (pEchoReply->Status == IP_SUCCESS)
             {
                 *latency = pEchoReply->RoundTripTime;
-                return TRUE;
+                success = TRUE;
             }
         }
 
-        return FALSE;
+        // v2.7 워치독: 핸들 상태 체크
+        CheckAndRefreshHandle(success);
+
+        return success;
     }
 
     // Fallback: 기존 방식 (최적화 실패 시)
@@ -193,7 +274,7 @@ BOOL DoPing(const wchar_t *ip, DWORD *latency)
         replySize,
         PING_TIMEOUT);
 
-    BOOL success = FALSE;
+    success = FALSE;
     if (result != 0)
     {
         PICMP_ECHO_REPLY pEchoReply = (PICMP_ECHO_REPLY)replyBuffer;

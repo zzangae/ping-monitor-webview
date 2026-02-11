@@ -1040,6 +1040,9 @@
             // Start time updates
             updateTime();
             timeInterval = setInterval(updateTime, 1000);
+            
+            // v2.7: 365일 무중단 운영 초기화
+            initContinuousOperation();
         });
 
         // 브라우저 종료 감지
@@ -2309,6 +2312,115 @@
                     }
                 }
             });
+        }
+
+        // ========================================
+        // 365일 무중단 운영: 자동 리로드 (v2.7)
+        // ========================================
+        
+        const AUTO_RELOAD_HOURS = 24;           // 자동 리로드 간격 (시간)
+        const AUTO_RELOAD_MS = AUTO_RELOAD_HOURS * 60 * 60 * 1000;
+        const MEMORY_CHECK_INTERVAL = 30 * 60 * 1000;  // 메모리 체크 간격 (30분)
+        const MEMORY_THRESHOLD_MB = 500;        // 메모리 임계값 (MB)
+        
+        let pageLoadTime = Date.now();
+        let memoryCheckInterval = null;
+        
+        /**
+         * 자동 리로드 스케줄러
+         */
+        function scheduleAutoReload() {
+            const timeUntilReload = AUTO_RELOAD_MS;
+            
+            console.log(`[무중단] 자동 리로드 예약: ${AUTO_RELOAD_HOURS}시간 후`);
+            
+            setTimeout(() => {
+                console.log('[무중단] 24시간 경과 - 페이지 리로드');
+                performSafeReload();
+            }, timeUntilReload);
+        }
+        
+        /**
+         * 안전한 페이지 리로드
+         * - 현재 상태 저장 후 리로드
+         */
+        function performSafeReload() {
+            try {
+                // 상태 저장
+                localStorage.setItem('lastReloadTime', Date.now().toString());
+                localStorage.setItem('wasAutoReload', 'true');
+                
+                // 차트 정리
+                if (typeof comparisonChart !== 'undefined' && comparisonChart) {
+                    try { comparisonChart.destroy(); } catch(e) {}
+                }
+                Object.keys(ipCharts).forEach(key => {
+                    try { if (ipCharts[key]) ipCharts[key].destroy(); } catch(e) {}
+                });
+                
+                // 리로드
+                window.location.reload();
+            } catch (e) {
+                console.error('[무중단] 리로드 실패:', e);
+                // 강제 리로드
+                window.location.href = window.location.href;
+            }
+        }
+        
+        /**
+         * 메모리 사용량 체크 (Chrome/Edge)
+         */
+        function checkMemoryUsage() {
+            if (performance.memory) {
+                const usedMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                const totalMB = Math.round(performance.memory.totalJSHeapSize / 1024 / 1024);
+                
+                console.log(`[메모리] 사용: ${usedMB}MB / ${totalMB}MB`);
+                
+                // 임계값 초과 시 리로드
+                if (usedMB > MEMORY_THRESHOLD_MB) {
+                    console.warn(`[메모리] 임계값 초과 (${usedMB}MB > ${MEMORY_THRESHOLD_MB}MB) - 리로드`);
+                    performSafeReload();
+                }
+            }
+        }
+        
+        /**
+         * 가비지 컬렉션 힌트 (주기적 호출)
+         */
+        function requestGarbageCollection() {
+            // 미사용 참조 정리
+            if (typeof comparisonChart !== 'undefined' && comparisonChart) {
+                // 오래된 데이터셋 정리
+                comparisonChart.data.datasets.forEach(dataset => {
+                    if (dataset.data && dataset.data.length > selectedTimeRange * 2) {
+                        dataset.data = dataset.data.slice(-selectedTimeRange);
+                    }
+                });
+            }
+        }
+        
+        /**
+         * 무중단 운영 초기화
+         */
+        function initContinuousOperation() {
+            // 자동 리로드 스케줄
+            scheduleAutoReload();
+            
+            // 메모리 체크 (30분마다)
+            memoryCheckInterval = setInterval(() => {
+                checkMemoryUsage();
+                requestGarbageCollection();
+            }, MEMORY_CHECK_INTERVAL);
+            
+            // 이전 자동 리로드 확인
+            const wasAutoReload = localStorage.getItem('wasAutoReload');
+            if (wasAutoReload === 'true') {
+                localStorage.removeItem('wasAutoReload');
+                console.log('[무중단] 자동 리로드 후 복구 완료');
+            }
+            
+            console.log('[무중단] 365일 운영 모드 활성화');
         }
 
     </script>
