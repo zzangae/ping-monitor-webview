@@ -1,10 +1,11 @@
-# 🌐 Ping Monitor WebView2 v2.6
+# 🌐 Ping Monitor WebView2 v2.7
 
 Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
-![Version](https://img.shields.io/badge/version-2.6-blue)
+![Version](https://img.shields.io/badge/version-2.7-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+![Uptime](https://img.shields.io/badge/uptime-365%20days-green)
 
 **GitHub**: https://github.com/zzangae/pings
 
@@ -24,6 +25,13 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
 **Ping Monitor WebView2**는 C 백엔드와 HTML/JavaScript 프론트엔드로 구성된 Windows용 네트워크 모니터링 도구입니다.
 
+### ✨ v2.7 하이라이트: 365일 무중단 운영
+
+- 🔄 **24시간 자동 핸들 갱신** - ICMP 핸들 장기 운영 안정성
+- 🛡️ **SEH 크래시 핸들러** - 예외 발생 시 자동 재시작
+- 📊 **프론트엔드 자동 리로드** - 메모리 누수 방지
+- 📁 **로그 로테이션** - 5MB 제한, 자동 백업/정리
+
 ---
 
 ## 1. 시스템 아키텍처
@@ -32,7 +40,7 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                Ping Monitor v2.6 Architecture            │
+│                Ping Monitor v2.7 Architecture            │
 ├─────────────────────────────────────────────────────────┤
 │                                                           │
 │  ┌─────────────────┐        ┌──────────────────────┐   │
@@ -43,6 +51,7 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 │  │ • Data Gen      │        │ • JSON API           │   │
 │  │ • Outage Track  │        │ • /shutdown          │   │
 │  │ • Custom Alert  │        └──────────────────────┘   │
+│  │ • 365일 워치독  │                   │                │
 │  └─────────────────┘                   │                │
 │           │                            │                │
 │           ▼                            ▼                │
@@ -52,12 +61,19 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 │  │ • JSON Files    │◄──────►│ • HTML/CSS/JS        │   │
 │  │ • INI Configs   │        │ • Chart.js           │   │
 │  │ • Atomic Write  │        │ • Real-time Update   │   │
+│  │ • Log Rotation  │        │ • Auto Reload        │   │
 │  └─────────────────┘        └──────────────────────┘   │
 │                                                           │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │            System Tray Integration               │   │
 │  │  • Start/Stop  • Browser  • Notifications        │   │
 │  │  • Reload Config  • Change Port  • Exit          │   │
+│  └─────────────────────────────────────────────────┘   │
+│                                                           │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │         v2.7 365일 무중단 운영 시스템            │   │
+│  │  • SEH 크래시 핸들러  • 자동 재시작              │   │
+│  │  • ICMP 핸들 갱신     • 로그 로테이션            │   │
 │  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -74,6 +90,9 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
   - 장애 감지 및 복구 추적
   - 커스텀 알림 창 시스템
   - 설정 파일 파싱
+  - **v2.7**: 정적 리소스 재사용 (핸들, 버퍼)
+  - **v2.7**: 24시간 워치독 (핸들 자동 갱신)
+  - **v2.7**: SEH 크래시 핸들러
 
 #### 1.2.2 Embedded HTTP Server
 
@@ -99,6 +118,8 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
   - 알림/장애 현황 필터링
   - 그룹 관리 및 임계값 설정
   - LocalStorage 상태 저장
+  - **v2.7**: 24시간 자동 리로드
+  - **v2.7**: 메모리 사용량 모니터링
 
 #### 1.2.4 Custom Notification System
 
@@ -108,6 +129,17 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
 - **자동 닫힘**: 5초 후
 - **스레드 안전**: PostMessage를 통한 메인 스레드 처리
 
+#### 1.2.5 v2.7 365일 무중단 운영 시스템
+
+| 구성 요소         | 설명                     | 주기       |
+| ----------------- | ------------------------ | ---------- |
+| ICMP 워치독       | 핸들 자동 갱신           | 24시간     |
+| 실패 감지         | 연속 실패 시 핸들 재생성 | 100회 실패 |
+| SEH 핸들러        | 크래시 시 자동 재시작    | 즉시       |
+| 프론트엔드 리로드 | 메모리 정리              | 24시간     |
+| 메모리 체크       | 임계값 초과 시 리로드    | 30분       |
+| 로그 로테이션     | 파일 크기 관리           | 1시간      |
+
 ### 1.3 데이터 흐름
 
 ```
@@ -116,6 +148,11 @@ Windows용 실시간 네트워크 핑 모니터링 도구 with 웹 대시보드
  ping_config.ini   ICMP Ping   HTTP Server    Chart.js
  int_config.ini    Network      (localhost)   Dashboard
                    Monitoring
+                      ↓
+              [Log Rotation]
+              • 5MB 제한
+              • 3개 백업
+              • 30일 보관
 ```
 
 ### 1.4 모듈 구조
@@ -125,12 +162,12 @@ ping_monitor_webview.c (메인)
 ├── module/
 │   ├── types.h          (타입 정의)
 │   ├── config.c/h       (설정 파일 로딩)
-│   ├── network.c/h      (네트워크 모니터링)
+│   ├── network.c/h      (네트워크 모니터링 + v2.7 워치독)
 │   ├── notification.c/h (커스텀 알림)
 │   ├── port.c/h         (포트 관리 다이얼로그)
 │   └── tray.c/h         (시스템 트레이)
 ├── http_server.c/h      (HTTP 서버)
-├── outage.c/h           (장애 추적)
+├── outage.c/h           (장애 추적 + v2.7 로그 로테이션)
 ├── browser_monitor.c/h  (브라우저 감지)
 └── config_api.c/h       (설정 API)
 ```
@@ -142,24 +179,24 @@ ping_monitor_webview.c (메인)
 ### 2.1 개발 환경 구조
 
 ```
-ping_monitor_v26/
+ping_monitor_v27/
 ├── ping_monitor.exe          # 실행 파일 (빌드 후 생성)
 ├── build.bat                 # 빌드 스크립트
 ├── DOWNLOAD_CHARTJS.bat      # Chart.js 다운로드
 ├── README.md
-├── DOCUMENTATION_v2.6.md
+├── DOCUMENTATION_v2.7.md
 ├── GRAPH_HTML_SUMMARY.md
 │
 ├── main/                     # C 소스 코드
-│   ├── ping_monitor_webview.c
+│   ├── ping_monitor_webview.c  (v2.7: SEH 크래시 핸들러)
 │   ├── http_server.c/h
-│   ├── outage.c/h
+│   ├── outage.c/h              (v2.7: 로그 로테이션)
 │   ├── browser_monitor.c/h
 │   ├── config_api.c/h
 │   └── module/
 │       ├── types.h
 │       ├── config.c/h
-│       ├── network.c/h
+│       ├── network.c/h         (v2.7: 워치독, 정적 리소스)
 │       ├── notification.c/h
 │       ├── port.c/h
 │       └── tray.c/h
@@ -171,10 +208,11 @@ ping_monitor_v26/
 ├── data/                     # 자동 생성 데이터 (실행 시)
 │   ├── ping_data.json
 │   ├── notification_log.json
-│   └── outage_log.json
+│   ├── outage_log.json
+│   └── crash_log.txt         # v2.7: 크래시 로그
 │
 └── web/                      # 웹 파일
-    ├── graph.html
+    ├── graph.html            # v2.7: 자동 리로드 기능
     ├── chart.umd.min.js     # 205KB
     └── css/
         ├── variables.css
@@ -190,7 +228,7 @@ ping_monitor_v26/
 ### 2.2 배포 패키지 구조
 
 ```
-PingMonitor_v2.6_Release/
+PingMonitor_v2.7_Release/
 ├── ping_monitor.exe
 ├── config/
 │   ├── ping_config.ini
@@ -206,9 +244,9 @@ PingMonitor_v2.6_Release/
 
 ### 2.3 실행 파일 크기
 
-- **ping_monitor.exe**: ~150KB
+- **ping_monitor.exe**: ~160KB (v2.7 기능 추가)
 - **chart.umd.min.js**: ~205KB
-- **총 배포 패키지**: ~500KB (압축 시 ~300KB)
+- **총 배포 패키지**: ~550KB (압축 시 ~350KB)
 
 ---
 
@@ -252,7 +290,7 @@ gcc --version
 #### 3.3.1 build.bat 사용 (권장)
 
 ```cmd
-cd ping_monitor_v26
+cd ping_monitor_v27
 build.bat
 ```
 
@@ -315,8 +353,8 @@ build.bat
 
 **생성 파일:**
 
-- `PingMonitor_v2.6_Release/` (폴더)
-- `PingMonitor_v2.6_Release.zip` (압축)
+- `PingMonitor_v2.7_Release/` (폴더)
+- `PingMonitor_v2.7_Release.zip` (압축)
 
 ---
 
@@ -349,13 +387,14 @@ ping_monitor.exe
 2. 시스템 트레이 아이콘 생성
 3. 기본 브라우저로 대시보드 오픈
 4. 백그라운드에서 모니터링 시작
+5. **v2.7**: 365일 무중단 운영 모드 활성화
 
 ### 4.2 시스템 트레이 메뉴
 
 **트레이 아이콘 우클릭:**
 
 ```
-🟢 Ping Monitor v2.6
+🟢 Ping Monitor v2.7
 ├─ ▶ 시작 / ⏸ 일시정지
 ├─ 🌐 웹 대시보드 열기
 ├─ 🔔 알림 활성화 ☑
@@ -479,6 +518,36 @@ ping_monitor.exe
 
 - `data/` 폴더 삭제 후 재실행
 - 알림/장애 로그만 초기화: 해당 JSON 파일 삭제
+
+### 4.6 v2.7 365일 무중단 운영
+
+#### 4.6.1 자동 운영 기능
+
+| 기능              | 설명                      | 사용자 개입 |
+| ----------------- | ------------------------- | ----------- |
+| ICMP 핸들 갱신    | 24시간마다 자동           | 불필요      |
+| 연속 실패 복구    | 100회 실패 시 핸들 재생성 | 불필요      |
+| 크래시 자동 복구  | SEH 예외 감지 시 재시작   | 불필요      |
+| 프론트엔드 리로드 | 24시간마다 자동           | 불필요      |
+| 메모리 관리       | 500MB 초과 시 리로드      | 불필요      |
+| 로그 로테이션     | 5MB 초과 시 자동 백업     | 불필요      |
+
+#### 4.6.2 크래시 로그 확인
+
+크래시 발생 시 `data/crash_log.txt`에 기록:
+
+```
+[2025-02-12 14:30:25] 크래시 발생 - 예외 코드: 0xC0000005, 주소: 0x00401234
+```
+
+#### 4.6.3 로그 파일 관리
+
+**자동 로테이션:**
+
+- 로그 파일이 5MB 초과 시 자동 백업
+- `outage_log.json` → `outage_log.json.1` → `.2` → `.3`
+- 최대 3개 백업 유지
+- 30일 이상 된 백업 자동 삭제
 
 ---
 
@@ -724,144 +793,141 @@ ConsecutiveFailures=1  (테스트용)
 **원인**: 차트 인스턴스 미정리
 **해결:**
 
-- 브라우저 새로고침 (F5)
-- 프로그램 재시작
+- **v2.7**: 24시간마다 자동 리로드로 해결
+- 또는 브라우저 새로고침 (F5)
+
+### 6.6 v2.7 365일 운영 관련
+
+#### 6.6.1 자동 재시작 반복
+
+**원인**: 반복적인 크래시 발생
+**해결:**
+
+1. `data/crash_log.txt` 확인
+2. 예외 코드로 원인 파악
+3. 최대 5회 재시작 후 수동 개입 필요
+
+#### 6.6.2 로그 파일 과다
+
+**원인**: 로테이션 실패 또는 비정상 종료
+**해결:**
+
+```cmd
+del data\*.json.1
+del data\*.json.2
+del data\*.json.3
+```
 
 ---
 
 ## 7. 버전 변경 이력
 
-### v2.6 (2025-02-01)
+### v2.7 (2025-02-12) - 365일 무중단 운영
 
 #### 7.1 주요 신규 기능
 
-**커스텀 알림 시스템**
+**365일 무중단 운영 시스템**
 
-- Outlook 스타일 알림 창
-- 트레이 아이콘을 가리지 않는 위치 (화면 우하단)
-- 부드러운 페이드 인/아웃 애니메이션
-- 5초 자동 닫힘 또는 클릭 시 즉시 닫힘
-- 최대 5개 동시 표시, 자동 정렬
-- 메인 스레드 PostMessage 방식으로 무한 로딩 문제 해결
+- SEH 크래시 핸들러: 예외 발생 시 자동 재시작
+- 크래시 로그 기록: `data/crash_log.txt`
+- 최대 5회 자동 재시작, 쿨다운 60초
+- 재시작 플래그 파일로 상태 추적
 
-**최소화 기능 개선**
+**C 백엔드 워치독**
 
-- 최상단 헤더 최소화 버튼 제거
-- IP 비교 타임라인 개별 최소화 (차트만 숨김)
-- 최소화된 IP 영역 개별 최소화 (아이콘만 숨김)
-- 서서히 나타나고 숨기는 애니메이션 (0.4초 ease-in-out)
-- 버튼 회전 효과 (180도 회전)
-- localStorage 상태 저장
+- ICMP 핸들 24시간 주기 자동 갱신
+- 연속 100회 실패 시 핸들 재생성
+- 정적 리소스 재사용 (핸들, 버퍼)
+- malloc/free 반복 제거로 메모리 단편화 방지
 
-**배포 시스템**
+**프론트엔드 자동 리로드**
 
-- build.bat 배포 기능 추가 (옵션 4)
-- data 폴더 자동 생성
-- Chart.js 포함
-- 압축 파일 자동 생성
-- README 자동 생성 제거 (요청에 따라)
+- 24시간마다 페이지 자동 리로드
+- 메모리 500MB 초과 시 강제 리로드
+- 30분마다 메모리 사용량 체크
+- localStorage로 상태 유지
 
-#### 7.2 버그 수정
+**로그 로테이션**
 
-**컴파일 오류**
+- 최대 파일 크기: 5MB
+- 백업 파일: 최대 3개 (.1, .2, .3)
+- 30일 이상 백업 자동 삭제
+- 1시간마다 로테이션 체크
 
-- `-lgdi32` 라이브러리 누락으로 CreateFontW 에러 → 수정
-- 중복 링킹 문제 (module_network.o 중복) → 제거
+#### 7.2 아키텍처 개선
 
-**알림 시스템**
+**network.c 최적화**
 
-- 알림창 무한 로딩 (매번 폰트 생성) → 전역 폰트 캐싱
-- 알림창 배경 흰색 표시 → WM_ERASEBKGND 처리 추가
-- 알림 비활성화 시 창 안 닫힘 → CleanupNotificationSystem 호출
-- 스레드 안전성 문제 → PostMessage 방식 전환
+```c
+// 정적 리소스 (프로그램 수명 동안 유지)
+static HANDLE s_hIcmpFile = INVALID_HANDLE_VALUE;
+static LPVOID s_replyBuffer = NULL;
+static wchar_t *s_jsonBuffer = NULL;
 
-**차트 로딩**
-
-- 배포 파일에서 Chart.js 미포함 → build.bat 수정
-- data 폴더 미생성 → 배포 패키지에 빈 폴더 추가
-
-**경로 문제**
-
-- exe 위치와 data 경로 불일치 → PathRemoveFileSpecW 단순화
-- main 폴더 감지 로직 복잡 → 제거
-
-#### 7.3 아키텍처 개선
-
-**모듈화**
-
-- notification.c/h 분리 (커스텀 알림 전용)
-- NotificationWindow 구조체 도입
-- NotificationRequest 구조체 (PostMessage 전달용)
-
-**메모리 관리**
-
-- 폰트 전역 캐싱 (g_titleFont, g_messageFont)
-- NotificationRequest 동적 할당/해제
-
-**스레드 안전성**
-
-- WM_SHOW_NOTIFICATION 메시지 추가
-- ProcessShowNotification 메인 스레드 처리
-- ShowCustomNotification에서 PostMessage 호출
-
-#### 7.4 UI/UX 개선
-
-**최소화 버튼 위치**
-
-- IP 비교 타임라인: 설정 버튼 오른쪽 (가장 우측 끝)
-- 최소화된 IP 영역: 카운트 오른쪽 (가장 우측 끝)
-
-**애니메이션**
-
-```css
-transition:
-  max-height 0.4s ease-in-out,
-  opacity 0.4s ease-in-out;
+// 워치독 상태
+static time_t s_lastHandleRefresh = 0;
+static int s_consecutivePingFailures = 0;
 ```
 
-**버튼 스타일**
+**outage.c 로테이션**
 
-```css
-.minimize-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-.minimize-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+```c
+#define MAX_LOG_SIZE_MB     5
+#define MAX_BACKUP_COUNT    3
+#define BACKUP_RETENTION_DAYS 30
+#define ROTATION_CHECK_INTERVAL 3600
+```
+
+**ping_monitor_webview.c 크래시 핸들러**
+
+```c
+LONG WINAPI CrashHandler(EXCEPTION_POINTERS *exInfo)
+{
+    // 크래시 로그 기록
+    // 정리 작업
+    // 자동 재시작
 }
 ```
 
-#### 7.5 문서화
+#### 7.3 신규 함수
 
-**추가된 문서**
+| 파일       | 함수                        | 설명               |
+| ---------- | --------------------------- | ------------------ |
+| network.c  | `InitNetworkModule()`       | 정적 리소스 초기화 |
+| network.c  | `CleanupNetworkModule()`    | 리소스 정리        |
+| network.c  | `RefreshIcmpHandle()`       | ICMP 핸들 갱신     |
+| network.c  | `CheckAndRefreshHandle()`   | 워치독 체크        |
+| outage.c   | `CheckAllLogsRotation()`    | 로그 로테이션      |
+| outage.c   | `ForceLogRotation()`        | 강제 로테이션      |
+| outage.c   | `CleanupOldBackups()`       | 오래된 백업 삭제   |
+| main       | `CrashHandler()`            | SEH 예외 처리      |
+| main       | `CreateRestartFlag()`       | 재시작 플래그 생성 |
+| main       | `RequestRestart()`          | 프로세스 재시작    |
+| graph.html | `initContinuousOperation()` | 무중단 운영 초기화 |
+| graph.html | `performSafeReload()`       | 안전한 리로드      |
+| graph.html | `checkMemoryUsage()`        | 메모리 체크        |
 
-- `DOCUMENTATION_v2.6.md` (완전 문서)
-- `GRAPH_HTML_SUMMARY.md` (graph.html 구조)
-- 섹션별 상세 가이드
-
-#### 7.6 알려진 제한사항
+#### 7.4 알려진 제한사항
 
 - Windows 전용 (Linux/macOS 미지원)
 - IPv4만 지원 (IPv6 미지원)
 - 최대 IP 개수: 약 100개 (성능 고려)
 - 브라우저 자동 닫기 기능 비활성화 (사용자 편의)
+- 자동 재시작 최대 5회 (무한 루프 방지)
 
-#### 7.7 다음 버전 계획 (v2.7)
+### v2.6 (2025-02-01)
 
-**예정 기능**
+#### 주요 기능
 
-- 통계 분석 페이지
-- 장기 데이터 보관 (CSV 내보내기)
-- 이메일/SMS 알림 (SMTP/API)
-- 다국어 지원 (영어)
-- 테마 커스터마이징
+- 커스텀 알림 시스템 (Outlook 스타일)
+- 최소화 기능 개선
+- 배포 시스템 (build.bat)
 
-**개선 계획**
+#### 버그 수정
 
-- IOCP 비동기 I/O (대규모 모니터링)
-- WebSocket 실시간 통신
-- SQLite 데이터 저장
-- RESTful API 확장
+- `-lgdi32` 라이브러리 누락 수정
+- 알림창 무한 로딩 수정
+- 스레드 안전성 개선
 
 ---
 
@@ -901,6 +967,8 @@ transition:
 .js   - JavaScript
 .md   - 마크다운 문서
 .bat  - 배치 스크립트
+.txt  - 텍스트 파일 (v2.7: 크래시 로그)
+.flag - 플래그 파일 (v2.7: 재시작 플래그)
 ```
 
 ### D. 기본 키보드 단축키
@@ -913,14 +981,26 @@ Ctrl+F5     - 캐시 무시 새로고침
 Alt+F4      - 브라우저 닫기 (프로그램은 계속 실행)
 ```
 
-### E. 참고 자료
+### E. v2.7 365일 운영 체크리스트
+
+```
+□ 정적 리소스 초기화 확인
+□ 워치독 로그 확인 (콘솔)
+□ 크래시 로그 파일 모니터링
+□ 로그 파일 크기 확인
+□ 브라우저 메모리 사용량 확인
+□ 자동 리로드 동작 확인
+```
+
+### F. 참고 자료
 
 - GitHub Repository: https://github.com/zzangae/pings
 - Chart.js Documentation: https://www.chartjs.org/docs/latest/
 - MinGW-w64: https://www.mingw-w64.org/
 - Winsock API: https://docs.microsoft.com/en-us/windows/win32/winsock/
+- SEH (Structured Exception Handling): https://docs.microsoft.com/en-us/cpp/cpp/structured-exception-handling-c-cpp
 
 ---
 
-**문서 버전**: v2.6
-**최종 수정일**: 2025-02-01
+**문서 버전**: v2.7
+**최종 수정일**: 2025-02-12
