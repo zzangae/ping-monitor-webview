@@ -1,79 +1,419 @@
 /**
- * Notification Module Implementation - Custom Notification Window
+ * Notification Module Implementation (v2.7)
+ * 상태 전환 기반 알림 시스템
+ * - 온라인→오프라인: 팝업 + 기록
+ * - 오프라인 지속: 기록만 (팝업 X)
+ * - 오프라인→온라인: 팝업 + 기록
+ * - 여러 IP 동시 알림 지원
  */
 
 #include "notification.h"
-#include <shellapi.h>
-#include <shlwapi.h>
+#include "types.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
+#include <shlwapi.h>
 
-#define MAX_NOTIFICATIONS 5
-static NotificationWindow g_notifications[MAX_NOTIFICATIONS] = {0};
-static BOOL g_notificationSystemInitialized = FALSE;
-static WNDCLASSW g_notificationClass = {0};
-static HFONT g_titleFont = NULL;
-static HFONT g_messageFont = NULL;
+// ============================================================================
+// Constants
+// ============================================================================
 
-LRESULT CALLBACK NotificationWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#define WM_SHOW_NOTIFICATION (WM_USER + 100)
+#define MAX_NOTIFICATION_WINDOWS 10
+#define NOTIFICATION_WIDTH 300
+#define NOTIFICATION_HEIGHT 80
+#define NOTIFICATION_MARGIN 10
+#define NOTIFICATION_DURATION 5000
+#define FADE_STEPS 20
+#define FADE_INTERVAL 25
+
+// ============================================================================
+// Structures
+// ============================================================================
+
+typedef struct
+{
+    HWND hwnd;
+    BOOL isActive;
+    int fadeStep;
+    UINT_PTR fadeTimerId;
+    UINT_PTR closeTimerId;
+} NotificationWindow;
+
+// NotificationRequest는 notification.h에서 정의됨
+
+// ============================================================================
+// Static Variables
+// ============================================================================
+
+static NotificationWindow s_windows[MAX_NOTIFICATION_WINDOWS] = {0};
+static HFONT s_titleFont = NULL;
+static HFONT s_messageFont = NULL;
+static BOOL s_initialized = FALSE;
+static const wchar_t *NOTIFICATION_CLASS = L"PingMonitorNotification";
+
+// 동시 오프라인 감지용
+#define BATCH_WINDOW_MS 2000 // 2초 내 발생한 알림을 배치로 간주
+#define MAX_POPUP_COUNT 10   // 이 개수 초과 시 팝업 억제
+
+static time_t s_batchStartTime = 0;
+static int s_batchOfflineCount = 0;
+static BOOL s_batchPopupSuppressed = FALSE;
+
+// ============================================================================
+// Forward Declarations
+// ============================================================================
+
+static LRESULT CALLBACK NotificationWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+static void RegisterNotificationClass(void);
+static int FindAvailableSlot(void);
+static void PositionNotification(HWND hwnd, int slot);
+static void StartFadeIn(int slot);
+static void StartFadeOut(int slot);
+static void WriteNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip);
+static void CloseAllNotificationWindows(void);
+
+// Timer callbacks
+static void CALLBACK FadeInTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime);
+static void CALLBACK CloseTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime);
+static void CALLBACK FadeOutTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime);
+
+// ============================================================================
+// Initialization
+// ============================================================================
 
 void InitNotificationSystem(void)
 {
-    if (g_notificationSystemInitialized)
+    if (s_initialized)
         return;
 
-    g_titleFont = CreateFontW(16, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                              CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    RegisterNotificationClass();
 
-    g_messageFont = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    // 폰트 생성 (한 번만)
+    s_titleFont = CreateFontW(
+        14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"맑은 고딕");
 
-    g_notificationClass.lpfnWndProc = NotificationWindowProc;
-    g_notificationClass.hInstance = GetModuleHandle(NULL);
-    g_notificationClass.lpszClassName = L"PingMonitorNotification";
-    g_notificationClass.hbrBackground = NULL;
-    g_notificationClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-    g_notificationClass.style = 0;
+    s_messageFont = CreateFontW(
+        12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"맑은 고딕");
 
-    if (RegisterClassW(&g_notificationClass))
-    {
-        g_notificationSystemInitialized = TRUE;
-    }
+    s_initialized = TRUE;
+    wprintf(L"[알림 시스템] 초기화 완료\n");
 }
 
 void CleanupNotificationSystem(void)
 {
-    for (int i = 0; i < MAX_NOTIFICATIONS; i++)
+    // 모든 알림창 닫기
+    for (int i = 0; i < MAX_NOTIFICATION_WINDOWS; i++)
     {
-        if (g_notifications[i].hwnd)
+        if (s_windows[i].hwnd && IsWindow(s_windows[i].hwnd))
         {
-            if (IsWindow(g_notifications[i].hwnd))
+            DestroyWindow(s_windows[i].hwnd);
+        }
+        s_windows[i].hwnd = NULL;
+        s_windows[i].isActive = FALSE;
+    }
+
+    // 폰트 해제
+    if (s_titleFont)
+    {
+        DeleteObject(s_titleFont);
+        s_titleFont = NULL;
+    }
+    if (s_messageFont)
+    {
+        DeleteObject(s_messageFont);
+        s_messageFont = NULL;
+    }
+
+    // 배치 상태 리셋
+    s_batchStartTime = 0;
+    s_batchOfflineCount = 0;
+    s_batchPopupSuppressed = FALSE;
+
+    s_initialized = FALSE;
+}
+
+// ============================================================================
+// Window Class Registration
+// ============================================================================
+
+static void RegisterNotificationClass(void)
+{
+    WNDCLASSW wc = {0};
+    wc.lpfnWndProc = NotificationWndProc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.lpszClassName = NOTIFICATION_CLASS;
+    wc.hbrBackground = NULL; // 직접 그리기
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+    RegisterClassW(&wc);
+}
+
+// ============================================================================
+// Core Notification Functions
+// ============================================================================
+
+/**
+ * 상태 전환 확인 및 알림 처리
+ * - previousOnline → online 변화 감지
+ * - 새로운 오프라인 전환: 팝업 + 기록
+ * - 오프라인 지속: 기록만
+ * - 복구: 팝업 + 기록
+ * - 동시 10개 이상 오프라인: 팝업 억제, 기록만
+ */
+void CheckAndNotify(IPTarget *target)
+{
+    if (!g_notifSettings.enabled)
+        return;
+
+    time_t now = time(NULL);
+    BOOL showPopup = FALSE;
+    BOOL isNewOffline = FALSE;
+    BOOL isRecovery = FALSE;
+
+    // 첫 번째 핑 결과 (total == 1): 기준점 설정
+    // 초기 previousOnline은 1로 가정 (온라인에서 시작)
+    if (target->total == 1)
+    {
+        // 첫 번째 결과가 오프라인이면 즉시 알림 (consecutiveFailures 무시)
+        if (target->online == 0)
+        {
+            isNewOffline = TRUE;
+            showPopup = g_notifSettings.notifyOnTimeout;
+            wprintf(L"[알림] %s (%s) - 최초 오프라인 감지 (total=%d)\n", target->name, target->ip, target->total);
+
+            // 배치 카운트 시작
+            if (s_batchStartTime == 0)
             {
-                DestroyWindow(g_notifications[i].hwnd);
+                s_batchStartTime = now;
             }
-            g_notifications[i].hwnd = NULL;
+            s_batchOfflineCount++;
+
+            // 10개 초과 체크
+            if (s_batchOfflineCount > MAX_POPUP_COUNT)
+            {
+                if (!s_batchPopupSuppressed)
+                {
+                    wprintf(L"[알림] 동시 오프라인 %d개 초과 - 팝업 억제, 기록만\n", MAX_POPUP_COUNT);
+                    s_batchPopupSuppressed = TRUE;
+                    CloseAllNotificationWindows();
+                }
+                showPopup = FALSE;
+            }
+
+            // 쿨다운 체크
+            if (showPopup && (now - target->lastNotificationTime) < g_notifSettings.cooldown)
+            {
+                showPopup = FALSE;
+            }
+
+            // 팝업 표시
+            if (showPopup)
+            {
+                target->lastNotificationTime = now;
+                ShowCustomNotification(L"⚠️ 연결 끊김", target->name, target->ip, TRUE);
+            }
+
+            // 로그 기록 (항상)
+            WriteNotificationLog(L"timeout", target->name, target->ip);
+        }
+        // 첫 번째 결과가 온라인이면 정상 - 알림 없음
+        target->previousOnline = target->online;
+        return;
+    }
+
+    // 배치 윈도우 리셋 체크 (2초 경과 시)
+    if (s_batchStartTime > 0 && difftime(now, s_batchStartTime) > (BATCH_WINDOW_MS / 1000.0))
+    {
+        // 배치 종료 - 리셋
+        if (s_batchPopupSuppressed)
+        {
+            wprintf(L"[알림] 대량 오프라인 배치 종료 (총 %d개, 팝업 억제됨)\n", s_batchOfflineCount);
+        }
+        s_batchStartTime = 0;
+        s_batchOfflineCount = 0;
+        s_batchPopupSuppressed = FALSE;
+    }
+
+    // 상태 전환 감지 (2번째 핑부터)
+    if (target->previousOnline == 1 && target->online == 0)
+    {
+        // 온라인 → 오프라인 (새로운 장애)
+        if (target->consecutiveFailures >= g_notifSettings.consecutiveFailuresThreshold)
+        {
+            isNewOffline = TRUE;
+
+            // 배치 카운트 증가
+            if (s_batchStartTime == 0)
+            {
+                s_batchStartTime = now;
+            }
+            s_batchOfflineCount++;
+
+            // 10개 이상이면 팝업 억제
+            if (s_batchOfflineCount > MAX_POPUP_COUNT)
+            {
+                if (!s_batchPopupSuppressed)
+                {
+                    wprintf(L"[알림] 동시 오프라인 %d개 초과 - 팝업 억제, 기록만\n", MAX_POPUP_COUNT);
+                    s_batchPopupSuppressed = TRUE;
+
+                    // 기존 팝업들 모두 닫기
+                    CloseAllNotificationWindows();
+                }
+                showPopup = FALSE;
+            }
+            else
+            {
+                showPopup = g_notifSettings.notifyOnTimeout && !s_batchPopupSuppressed;
+            }
+
+            wprintf(L"[알림] %s (%s) - 새로운 오프라인 전환 (배치 %d/%d)\n",
+                    target->name, target->ip, s_batchOfflineCount, MAX_POPUP_COUNT);
+        }
+    }
+    else if (target->previousOnline == 0 && target->online == 1)
+    {
+        // 오프라인 → 온라인 (복구)
+        isRecovery = TRUE;
+        showPopup = g_notifSettings.notifyOnRecovery && !s_batchPopupSuppressed;
+        wprintf(L"[알림] %s (%s) - 복구됨\n", target->name, target->ip);
+    }
+    else if (target->previousOnline == 0 && target->online == 0)
+    {
+        // 오프라인 지속 - 팝업 없이 (이미 알림 보냄)
+        showPopup = FALSE;
+    }
+
+    // 쿨다운 체크 (팝업용)
+    if (showPopup && (now - target->lastNotificationTime) < g_notifSettings.cooldown)
+    {
+        showPopup = FALSE;
+    }
+
+    // 팝업 알림 표시
+    if (showPopup)
+    {
+        target->lastNotificationTime = now;
+
+        if (isNewOffline)
+        {
+            ShowCustomNotification(L"⚠️ 연결 끊김", target->name, target->ip, TRUE);
+            WriteNotificationLog(L"timeout", target->name, target->ip);
+        }
+        else if (isRecovery)
+        {
+            ShowCustomNotification(L"✅ 연결 복구", target->name, target->ip, FALSE);
+            WriteNotificationLog(L"recovery", target->name, target->ip);
+        }
+    }
+    else if (isNewOffline || isRecovery)
+    {
+        // 팝업은 안 뜨지만 로그는 기록
+        if (isNewOffline)
+        {
+            WriteNotificationLog(L"timeout", target->name, target->ip);
+        }
+        else if (isRecovery)
+        {
+            WriteNotificationLog(L"recovery", target->name, target->ip);
         }
     }
 
-    if (g_titleFont)
-    {
-        DeleteObject(g_titleFont);
-        g_titleFont = NULL;
-    }
-    if (g_messageFont)
-    {
-        DeleteObject(g_messageFont);
-        g_messageFont = NULL;
-    }
+    // 상태 업데이트 (다음 비교를 위해)
+    target->previousOnline = target->online;
 }
 
-int FindFreeNotificationSlot(void)
+/**
+ * 커스텀 알림창 표시 (PostMessage 방식 - 스레드 안전)
+ */
+void ShowCustomNotification(const wchar_t *title, const wchar_t *name, const wchar_t *ip, BOOL isTimeout)
 {
-    for (int i = 0; i < MAX_NOTIFICATIONS; i++)
+    if (!g_notifSettings.enabled || !g_mainHwnd)
+        return;
+
+    // 메인 스레드로 메시지 전송
+    NotificationRequest *req = (NotificationRequest *)malloc(sizeof(NotificationRequest));
+    if (!req)
+        return;
+
+    swprintf(req->title, 256, L"%s", title);
+    swprintf(req->message, 512, L"%s\n%s", name, ip);
+    req->isTimeout = isTimeout;
+
+    PostMessage(g_mainHwnd, WM_SHOW_NOTIFICATION, 0, (LPARAM)req);
+}
+
+/**
+ * 메인 스레드에서 알림창 실제 생성
+ */
+void ProcessShowNotification(NotificationRequest *req)
+{
+    if (!req)
+        return;
+
+    int slot = FindAvailableSlot();
+    if (slot < 0)
     {
-        if (!g_notifications[i].hwnd || !IsWindow(g_notifications[i].hwnd))
+        wprintf(L"[알림] 슬롯 부족 - 알림 생략\n");
+        return;
+    }
+
+    // 알림창 생성
+    HWND hwnd = CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED,
+        NOTIFICATION_CLASS,
+        NULL,
+        WS_POPUP,
+        0, 0,
+        NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT,
+        NULL, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!hwnd)
+    {
+        wprintf(L"[알림] 창 생성 실패\n");
+        return;
+    }
+
+    // 창 데이터 저장
+    s_windows[slot].hwnd = hwnd;
+    s_windows[slot].isActive = TRUE;
+    s_windows[slot].fadeStep = 0;
+
+    // 데이터를 창에 연결
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)_wcsdup(req->message));
+
+    // 배경색 설정 (타임아웃: 빨간색 계열, 복구: 녹색 계열)
+    // 창에 슬롯 번호 저장
+    SetPropW(hwnd, L"Slot", (HANDLE)(LONG_PTR)slot);
+    SetPropW(hwnd, L"IsTimeout", (HANDLE)(LONG_PTR)req->isTimeout);
+
+    // 초기 투명도 0
+    SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+
+    // 위치 설정
+    PositionNotification(hwnd, slot);
+
+    // 표시 및 페이드인 시작
+    ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+    StartFadeIn(slot);
+
+    wprintf(L"[알림] 창 생성됨 (슬롯 %d)\n", slot);
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+static int FindAvailableSlot(void)
+{
+    for (int i = 0; i < MAX_NOTIFICATION_WINDOWS; i++)
+    {
+        if (!s_windows[i].isActive)
         {
             return i;
         }
@@ -81,303 +421,207 @@ int FindFreeNotificationSlot(void)
     return -1;
 }
 
-void RepositionNotifications(void)
+static void PositionNotification(HWND hwnd, int slot)
 {
+    // 작업 영역 (트레이 제외)
     RECT workArea;
     SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
 
-    int yOffset = 10;
-    for (int i = 0; i < MAX_NOTIFICATIONS; i++)
+    int x = workArea.right - NOTIFICATION_WIDTH - NOTIFICATION_MARGIN;
+    int y = workArea.bottom - (NOTIFICATION_HEIGHT + NOTIFICATION_MARGIN) * (slot + 1);
+
+    SetWindowPos(hwnd, HWND_TOPMOST, x, y,
+                 NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT,
+                 SWP_NOACTIVATE);
+}
+
+/**
+ * 모든 알림창 즉시 닫기 (대량 오프라인 시 사용)
+ */
+static void CloseAllNotificationWindows(void)
+{
+    for (int i = 0; i < MAX_NOTIFICATION_WINDOWS; i++)
     {
-        if (g_notifications[i].hwnd && IsWindow(g_notifications[i].hwnd))
+        if (s_windows[i].isActive && s_windows[i].hwnd && IsWindow(s_windows[i].hwnd))
         {
-            int x = workArea.right - NOTIFICATION_WIDTH - 10;
-            int y = workArea.bottom - NOTIFICATION_HEIGHT - yOffset;
+            // 타이머 정리
+            if (s_windows[i].fadeTimerId)
+            {
+                KillTimer(s_windows[i].hwnd, s_windows[i].fadeTimerId);
+                s_windows[i].fadeTimerId = 0;
+            }
+            if (s_windows[i].closeTimerId)
+            {
+                KillTimer(s_windows[i].hwnd, s_windows[i].closeTimerId);
+                s_windows[i].closeTimerId = 0;
+            }
 
-            SetWindowPos(g_notifications[i].hwnd, HWND_TOPMOST, x, y, 0, 0,
-                         SWP_NOSIZE | SWP_NOACTIVATE);
-
-            yOffset += NOTIFICATION_HEIGHT + 10;
+            // 창 파괴
+            DestroyWindow(s_windows[i].hwnd);
+            s_windows[i].hwnd = NULL;
+            s_windows[i].isActive = FALSE;
         }
+    }
+
+    wprintf(L"[알림] 모든 팝업창 닫힘 (대량 오프라인 감지)\n");
+}
+
+// ============================================================================
+// Fade Animation
+// ============================================================================
+
+static void CALLBACK FadeInTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime)
+{
+    int slot = (int)(LONG_PTR)GetPropW(hwnd, L"Slot");
+
+    s_windows[slot].fadeStep++;
+    int alpha = (255 * s_windows[slot].fadeStep) / FADE_STEPS;
+
+    if (alpha >= 255)
+    {
+        alpha = 255;
+        KillTimer(hwnd, idTimer);
+        s_windows[slot].fadeTimerId = 0;
+
+        // 자동 닫기 타이머 시작
+        s_windows[slot].closeTimerId = SetTimer(hwnd, 2, NOTIFICATION_DURATION, CloseTimerProc);
+    }
+
+    SetLayeredWindowAttributes(hwnd, 0, (BYTE)alpha, LWA_ALPHA);
+}
+
+static void CALLBACK CloseTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime)
+{
+    KillTimer(hwnd, idTimer);
+    int slot = (int)(LONG_PTR)GetPropW(hwnd, L"Slot");
+    s_windows[slot].closeTimerId = 0;
+    StartFadeOut(slot);
+}
+
+static void CALLBACK FadeOutTimerProc(HWND hwnd, UINT msg, UINT_PTR idTimer, DWORD dwTime)
+{
+    int slot = (int)(LONG_PTR)GetPropW(hwnd, L"Slot");
+
+    s_windows[slot].fadeStep--;
+    int alpha = (255 * s_windows[slot].fadeStep) / FADE_STEPS;
+
+    if (alpha <= 0)
+    {
+        KillTimer(hwnd, idTimer);
+        s_windows[slot].fadeTimerId = 0;
+
+        // 창 파괴
+        DestroyWindow(hwnd);
+        s_windows[slot].hwnd = NULL;
+        s_windows[slot].isActive = FALSE;
+
+        wprintf(L"[알림] 창 닫힘 (슬롯 %d)\n", slot);
+    }
+    else
+    {
+        SetLayeredWindowAttributes(hwnd, 0, (BYTE)alpha, LWA_ALPHA);
     }
 }
 
-LRESULT CALLBACK NotificationWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+static void StartFadeIn(int slot)
+{
+    s_windows[slot].fadeStep = 0;
+    s_windows[slot].fadeTimerId = SetTimer(s_windows[slot].hwnd, 1, FADE_INTERVAL, FadeInTimerProc);
+}
+
+static void StartFadeOut(int slot)
+{
+    // 기존 타이머 정리
+    if (s_windows[slot].closeTimerId)
+    {
+        KillTimer(s_windows[slot].hwnd, s_windows[slot].closeTimerId);
+        s_windows[slot].closeTimerId = 0;
+    }
+
+    s_windows[slot].fadeStep = FADE_STEPS;
+    s_windows[slot].fadeTimerId = SetTimer(s_windows[slot].hwnd, 3, FADE_INTERVAL, FadeOutTimerProc);
+}
+
+// ============================================================================
+// Window Procedure
+// ============================================================================
+
+static LRESULT CALLBACK NotificationWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
-    case WM_CREATE:
-        SetTimer(hwnd, 1, NOTIFICATION_DISPLAY_TIME, NULL);
-        return 0;
-
-    case WM_TIMER:
-        if (wParam == 1)
-        {
-            KillTimer(hwnd, 1);
-            DestroyWindow(hwnd);
-        }
-        return 0;
-
-    case WM_LBUTTONDOWN:
-        DestroyWindow(hwnd);
-        return 0;
-
-    case WM_CLOSE:
-        DestroyWindow(hwnd);
-        return 0;
-
-    case WM_ERASEBKGND:
-    {
-        HDC hdc = (HDC)wParam;
-        RECT rect;
-        GetClientRect(hwnd, &rect);
-
-        HBRUSH bgBrush = CreateSolidBrush(RGB(45, 45, 48));
-        FillRect(hdc, &rect, bgBrush);
-        DeleteObject(bgBrush);
-
-        return 1;
-    }
-
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
 
-        NotificationWindow *notif = NULL;
-        for (int i = 0; i < MAX_NOTIFICATIONS; i++)
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+
+        // 배경색 (타임아웃/복구에 따라)
+        BOOL isTimeout = (BOOL)(LONG_PTR)GetPropW(hwnd, L"IsTimeout");
+        HBRUSH bgBrush = CreateSolidBrush(isTimeout ? RGB(220, 53, 69) : RGB(40, 167, 69));
+        FillRect(hdc, &rect, bgBrush);
+        DeleteObject(bgBrush);
+
+        // 테두리
+        HPEN borderPen = CreatePen(PS_SOLID, 1, isTimeout ? RGB(185, 28, 48) : RGB(30, 126, 52));
+        SelectObject(hdc, borderPen);
+        SelectObject(hdc, GetStockObject(NULL_BRUSH));
+        Rectangle(hdc, 0, 0, rect.right, rect.bottom);
+        DeleteObject(borderPen);
+
+        // 텍스트
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+
+        wchar_t *message = (wchar_t *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+        if (message)
         {
-            if (g_notifications[i].hwnd == hwnd)
-            {
-                notif = &g_notifications[i];
-                break;
-            }
-        }
+            SelectObject(hdc, s_titleFont ? s_titleFont : GetStockObject(DEFAULT_GUI_FONT));
 
-        if (notif)
-        {
-            RECT clientRect;
-            GetClientRect(hwnd, &clientRect);
-
-            SetBkMode(hdc, TRANSPARENT);
-
-            // Border
-            HPEN borderPen = CreatePen(PS_SOLID, 1, RGB(100, 100, 100));
-            HPEN oldPen = (HPEN)SelectObject(hdc, borderPen);
-            HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            Rectangle(hdc, 0, 0, clientRect.right, clientRect.bottom);
-            SelectObject(hdc, oldPen);
-            SelectObject(hdc, oldBrush);
-            DeleteObject(borderPen);
-
-            // Icon
-            COLORREF iconColor;
-            if (notif->type == NIIF_WARNING)
-                iconColor = RGB(255, 165, 0);
-            else if (notif->type == NIIF_ERROR)
-                iconColor = RGB(220, 50, 50);
-            else
-                iconColor = RGB(80, 200, 120);
-
-            HBRUSH iconBrush = CreateSolidBrush(iconColor);
-            oldBrush = (HBRUSH)SelectObject(hdc, iconBrush);
-            SelectObject(hdc, GetStockObject(NULL_PEN));
-            Ellipse(hdc, 15, 15, 45, 45);
-            SelectObject(hdc, oldBrush);
-            DeleteObject(iconBrush);
-
-            // Title
-            HFONT oldFont = (HFONT)SelectObject(hdc, g_titleFont);
-            RECT titleRect = {60, 12, clientRect.right - 10, 32};
-            SetTextColor(hdc, RGB(255, 255, 255));
-            DrawTextW(hdc, notif->title, -1, &titleRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-            // Message
-            SelectObject(hdc, g_messageFont);
-            RECT messageRect = {60, 35, clientRect.right - 10, clientRect.bottom - 10};
-            SetTextColor(hdc, RGB(200, 200, 200));
-            DrawTextW(hdc, notif->message, -1, &messageRect, DT_LEFT | DT_WORDBREAK);
-
-            SelectObject(hdc, oldFont);
+            RECT textRect = {10, 10, rect.right - 10, rect.bottom - 10};
+            DrawTextW(hdc, message, -1, &textRect, DT_LEFT | DT_WORDBREAK);
         }
 
         EndPaint(hwnd, &ps);
         return 0;
     }
 
-    case WM_DESTROY:
+    case WM_LBUTTONDOWN:
     {
-        for (int i = 0; i < MAX_NOTIFICATIONS; i++)
-        {
-            if (g_notifications[i].hwnd == hwnd)
-            {
-                g_notifications[i].hwnd = NULL;
-                break;
-            }
-        }
-        RepositionNotifications();
+        // 클릭 시 즉시 닫기
+        int slot = (int)(LONG_PTR)GetPropW(hwnd, L"Slot");
+        StartFadeOut(slot);
         return 0;
     }
+
+    case WM_ERASEBKGND:
+        return 1; // 배경 지우기 처리 완료
+
+    case WM_DESTROY:
+    {
+        // 메모리 해제
+        wchar_t *message = (wchar_t *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+        if (message)
+            free(message);
+
+        RemovePropW(hwnd, L"Slot");
+        RemovePropW(hwnd, L"IsTimeout");
+        return 0;
     }
 
-    return DefWindowProcW(hwnd, msg, wParam, lParam);
-}
-
-void ProcessShowNotification(NotificationRequest *req)
-{
-    if (!req || !g_notificationSystemInitialized)
-    {
-        return;
-    }
-
-    int slot = FindFreeNotificationSlot();
-    if (slot == -1)
-    {
-        if (g_notifications[0].hwnd && IsWindow(g_notifications[0].hwnd))
-        {
-            DestroyWindow(g_notifications[0].hwnd);
-        }
-        slot = 0;
-    }
-
-    RECT workArea;
-    SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
-
-    int x = workArea.right - NOTIFICATION_WIDTH - 10;
-    int y = workArea.bottom - NOTIFICATION_HEIGHT - 10;
-
-    HWND hwnd = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE,
-        L"PingMonitorNotification",
-        L"",
-        WS_POPUP,
-        x, y,
-        NOTIFICATION_WIDTH, NOTIFICATION_HEIGHT,
-        NULL, NULL,
-        GetModuleHandle(NULL),
-        NULL);
-
-    if (hwnd)
-    {
-        SetLayeredWindowAttributes(hwnd, 0, 250, LWA_ALPHA);
-
-        g_notifications[slot].hwnd = hwnd;
-        wcsncpy(g_notifications[slot].title, req->title, 127);
-        g_notifications[slot].title[127] = 0;
-        wcsncpy(g_notifications[slot].message, req->message, 255);
-        g_notifications[slot].message[255] = 0;
-        g_notifications[slot].type = req->type;
-        g_notifications[slot].startTime = GetTickCount();
-
-        ShowWindow(hwnd, SW_SHOWNA);
-
-        RepositionNotifications();
+    default:
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 }
 
-void ShowCustomNotification(const wchar_t *title, const wchar_t *message, DWORD type)
+// ============================================================================
+// Log Writing
+// ============================================================================
+
+static void WriteNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip)
 {
-    if (!g_mainHwnd)
-    {
-        return;
-    }
-
-    NotificationRequest *req = (NotificationRequest *)malloc(sizeof(NotificationRequest));
-    if (!req)
-    {
-        return;
-    }
-
-    wcsncpy(req->title, title, 127);
-    req->title[127] = 0;
-    wcsncpy(req->message, message, 255);
-    req->message[255] = 0;
-    req->type = type;
-
-    PostMessage(g_mainHwnd, WM_SHOW_NOTIFICATION, 0, (LPARAM)req);
-}
-
-void LoadNotificationSettings(void)
-{
-    wchar_t exeDir[MAX_PATH];
-    GetModuleFileNameW(NULL, exeDir, MAX_PATH);
-    PathRemoveFileSpecW(exeDir);
-
-    wchar_t configPath[MAX_PATH];
-    swprintf(configPath, MAX_PATH, L"%s\\config\\ping_config.ini", exeDir);
-
-    g_notifSettings.enabled = GetPrivateProfileIntW(L"Settings", L"NotificationsEnabled",
-                                                    DEFAULT_NOTIFICATION_ENABLED, configPath);
-    g_notifSettings.cooldown = GetPrivateProfileIntW(L"Settings", L"NotificationCooldown",
-                                                     DEFAULT_NOTIFICATION_COOLDOWN, configPath);
-    g_notifSettings.notifyOnTimeout = GetPrivateProfileIntW(L"Settings", L"NotifyOnTimeout",
-                                                            DEFAULT_NOTIFY_ON_TIMEOUT, configPath);
-    g_notifSettings.notifyOnRecovery = GetPrivateProfileIntW(L"Settings", L"NotifyOnRecovery",
-                                                             DEFAULT_NOTIFY_ON_RECOVERY, configPath);
-    g_notifSettings.consecutiveFailuresThreshold = GetPrivateProfileIntW(L"Settings", L"ConsecutiveFailures",
-                                                                         DEFAULT_CONSECUTIVE_FAILURES, configPath);
-}
-
-void ShowBalloonNotification(const wchar_t *title, const wchar_t *message, DWORD infoFlags)
-{
-    if (!g_notifSettings.enabled)
-        return;
-
-    ShowCustomNotification(title, message, infoFlags);
-}
-
-void CheckAndNotify(IPTarget *target)
-{
-    if (!g_notifSettings.enabled)
-        return;
-
-    time_t currentTime = time(NULL);
-    time_t timeSinceLastNotification = currentTime - target->lastNotificationTime;
-
-    struct tm *timeInfo = localtime(&currentTime);
-    wchar_t timeStr[32];
-    wcsftime(timeStr, 32, L"%H:%M:%S", timeInfo);
-
-    wchar_t message[256];
-
-    if (g_notifSettings.notifyOnTimeout &&
-        target->consecutiveFailures == g_notifSettings.consecutiveFailuresThreshold)
-    {
-        if (timeSinceLastNotification < g_notifSettings.cooldown)
-        {
-            return;
-        }
-
-        swprintf(message, ARRAYSIZE(message),
-                 L"[%s]\n%s (%s)\n%d회 연속 응답 없음",
-                 timeStr, target->name, target->ip, target->consecutiveFailures);
-
-        ShowBalloonNotification(L"⚠️ 네트워크 타임아웃", message, NIIF_WARNING);
-        target->lastNotificationTime = currentTime;
-
-        SaveNotificationLog(L"timeout", target->name, target->ip, timeStr);
-    }
-    else if (g_notifSettings.notifyOnRecovery &&
-             target->previousOnline == 0 && target->online == 1 &&
-             target->total > g_notifSettings.consecutiveFailuresThreshold)
-    {
-        swprintf(message, ARRAYSIZE(message),
-                 L"[%s]\n%s (%s)\n연결 복구됨 (지연: %lu ms)",
-                 timeStr, target->name, target->ip, target->latency);
-
-        ShowBalloonNotification(L"✅ 네트워크 복구", message, NIIF_INFO);
-        target->lastNotificationTime = currentTime;
-
-        SaveNotificationLog(L"recovery", target->name, target->ip, timeStr);
-    }
-
-    target->previousOnline = target->online;
-}
-
-void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t *ip, const wchar_t *timeStr)
-{
-    EnterCriticalSection(&g_logLock);
-
     wchar_t exeDir[MAX_PATH];
     GetModuleFileNameW(NULL, exeDir, MAX_PATH);
     PathRemoveFileSpecW(exeDir);
@@ -385,63 +629,103 @@ void SaveNotificationLog(const wchar_t *type, const wchar_t *name, const wchar_t
     wchar_t logPath[MAX_PATH];
     swprintf(logPath, MAX_PATH, L"%s\\data\\notification_log.json", exeDir);
 
-    wchar_t logData[50000] = L"[]";
-    FILE *readFile = _wfopen(logPath, L"r, ccs=UTF-8");
-    if (readFile)
+    // 시간 문자열
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    wchar_t timeStr[32], dateStr[32];
+    swprintf(timeStr, 32, L"%02d:%02d:%02d", t->tm_hour, t->tm_min, t->tm_sec);
+    swprintf(dateStr, 32, L"%04d-%02d-%02d", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday);
+
+    wprintf(L"[로그] 알림 기록 저장: %s - %s (%s) at %s %s\n", type, name, ip, dateStr, timeStr);
+
+    EnterCriticalSection(&g_logLock);
+
+    // 기존 로그 읽기 (텍스트 모드)
+    FILE *fp = _wfopen(logPath, L"r");
+    char *existingData = NULL;
+    long fileSize = 0;
+
+    if (fp)
     {
-        wchar_t *ptr = logData;
-        size_t remaining = 49999;
-        while (remaining > 0 && fgetws(ptr, remaining, readFile))
+        fseek(fp, 0, SEEK_END);
+        fileSize = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        if (fileSize > 4) // "[]" 이상
         {
-            size_t len = wcslen(ptr);
-            ptr += len;
-            remaining -= len;
+            existingData = (char *)malloc(fileSize + 1);
+            if (existingData)
+            {
+                size_t readLen = fread(existingData, 1, fileSize, fp);
+                existingData[readLen] = '\0';
+            }
         }
-        *ptr = 0;
-        fclose(readFile);
+        fclose(fp);
     }
 
-    time_t now = time(NULL);
-    struct tm *timeInfo = localtime(&now);
-    wchar_t dateStr[32];
-    wcsftime(dateStr, 32, L"%Y-%m-%d", timeInfo);
-
-    wchar_t *insertPos = wcsstr(logData, L"]");
-    if (insertPos)
+    // 새 로그 작성 (UTF-8)
+    fp = _wfopen(logPath, L"w, ccs=UTF-8");
+    if (fp)
     {
-        BOOL isEmpty = (wcsstr(logData, L"[]") != NULL);
-
-        wchar_t newEntry[512];
-        swprintf(newEntry, 512,
-                 L"%s\n  {\n"
-                 L"    \"type\": \"%s\",\n"
-                 L"    \"name\": \"%s\",\n"
-                 L"    \"ip\": \"%s\",\n"
-                 L"    \"time\": \"%s\",\n"
-                 L"    \"date\": \"%s\"\n"
-                 L"  }\n]",
-                 isEmpty ? L"" : L",",
+        // 새 항목 (맨 앞에 추가)
+        fwprintf(fp, L"[\n");
+        fwprintf(fp, L"  {\"type\": \"%s\", \"name\": \"%s\", \"ip\": \"%s\", \"time\": \"%s\", \"date\": \"%s\"}",
                  type, name, ip, timeStr, dateStr);
 
-        size_t beforeLen = insertPos - logData;
-        wchar_t result[51000];
-        wcsncpy(result, logData, beforeLen);
-        result[beforeLen] = 0;
-        wcscat(result, newEntry);
-
-        wchar_t tmpPath[MAX_PATH];
-        swprintf(tmpPath, MAX_PATH, L"%s\\data\\notification_log.json.tmp", exeDir);
-
-        FILE *writeFile = _wfopen(tmpPath, L"w, ccs=UTF-8");
-        if (writeFile)
+        // 기존 항목 추가
+        if (existingData && fileSize > 4)
         {
-            fwprintf(writeFile, L"%s", result);
-            fclose(writeFile);
+            // "[" 와 "]" 사이의 내용 찾기
+            char *start = strchr(existingData, '[');
+            if (start)
+            {
+                start++;
+                // 앞쪽 공백/개행 건너뛰기
+                while (*start && (*start == ' ' || *start == '\n' || *start == '\r' || *start == '\t'))
+                    start++;
 
-            DeleteFileW(logPath);
-            MoveFileW(tmpPath, logPath);
+                char *end = strrchr(start, ']');
+                if (end && end > start)
+                {
+                    *end = '\0';
+                    // 뒤쪽 공백/개행 제거
+                    while (end > start && (*(end - 1) == ' ' || *(end - 1) == '\n' || *(end - 1) == '\r' || *(end - 1) == '\t'))
+                    {
+                        end--;
+                        *end = '\0';
+                    }
+
+                    if (strlen(start) > 0)
+                    {
+                        fwprintf(fp, L",\n");
+                        // UTF-8 문자열을 wide string으로 변환
+                        int wideLen = MultiByteToWideChar(CP_UTF8, 0, start, -1, NULL, 0);
+                        if (wideLen > 0)
+                        {
+                            wchar_t *wideStr = (wchar_t *)malloc(wideLen * sizeof(wchar_t));
+                            if (wideStr)
+                            {
+                                MultiByteToWideChar(CP_UTF8, 0, start, -1, wideStr, wideLen);
+                                fwprintf(fp, L"%s", wideStr);
+                                free(wideStr);
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        fwprintf(fp, L"\n]\n");
+        fclose(fp);
+        wprintf(L"[로그] 알림 기록 저장 완료: %s\n", logPath);
     }
+    else
+    {
+        wprintf(L"[로그] 알림 기록 파일 열기 실패: %s\n", logPath);
+    }
+
+    if (existingData)
+        free(existingData);
 
     LeaveCriticalSection(&g_logLock);
 }

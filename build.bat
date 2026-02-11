@@ -183,7 +183,6 @@ mkdir %RELEASE_DIR%\web
 mkdir %RELEASE_DIR%\web\css
 mkdir %RELEASE_DIR%\web\config
 mkdir %RELEASE_DIR%\web\section-ip
-mkdir %RELEASE_DIR%\web\minwin-ip
 
 :: 실행 파일 복사
 echo 실행 파일 복사 중...
@@ -227,12 +226,6 @@ echo web/section-ip 파일 복사 중...
 if exist web\section-ip\timeline.css copy web\section-ip\timeline.css %RELEASE_DIR%\web\section-ip\ >nul
 if exist web\section-ip\timeline.js copy web\section-ip\timeline.js %RELEASE_DIR%\web\section-ip\ >nul
 if exist web\section-ip\timeline.html copy web\section-ip\timeline.html %RELEASE_DIR%\web\section-ip\ >nul
-
-:: web/minwin-ip 파일 복사 (v2.7 신규)
-echo web/minwin-ip 파일 복사 중...
-if exist web\minwin-ip\minwin-ip.css copy web\minwin-ip\minwin-ip.css %RELEASE_DIR%\web\minwin-ip\ >nul
-if exist web\minwin-ip\minwin-ip.js copy web\minwin-ip\minwin-ip.js %RELEASE_DIR%\web\minwin-ip\ >nul
-if exist web\minwin-ip\minwin-ip.html copy web\minwin-ip\minwin-ip.html %RELEASE_DIR%\web\minwin-ip\ >nul
 
 :: 압축 파일 생성 (PowerShell 사용)
 echo.

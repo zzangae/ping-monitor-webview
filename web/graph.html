@@ -430,7 +430,7 @@
         <div class="tab-nav">
             <button class="tab-btn active" data-tab="dashboard">📊 대시보드</button>
             <button class="tab-btn" data-tab="notifications">🔔 알림 기록</button>
-            <button class="tab-btn" data-tab="outages">📋 미응답 기록</button>
+            <button class="tab-btn" data-tab="timeout-records">⚠️ 미응답 기록</button>
         </div>
 
         <!-- Dashboard Tab -->
@@ -897,6 +897,43 @@
                 </div>
             </div>
         </div>
+
+        <!-- Timeout Records Tab (미응답 기록) -->
+        <div class="tab-content" id="timeout-records">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">전체 미응답</div>
+                    <div class="stat-value" id="timeoutTotalCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">오늘</div>
+                    <div class="stat-value" style="color: var(--error);" id="timeoutTodayCount">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">이번 주</div>
+                    <div class="stat-value" style="color: var(--warning);" id="timeoutWeekCount">0</div>
+                </div>
+            </div>
+
+            <!-- Timeout Log -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">미응답 기록</div>
+                </div>
+                
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-timeout-filter="all">전체</button>
+                    <button class="filter-btn" data-timeout-filter="today">오늘</button>
+                    <button class="filter-btn" data-timeout-filter="week">이번 주</button>
+                    <button class="filter-btn" data-timeout-filter="month">이번 달</button>
+                </div>
+
+                <div class="notification-list" id="timeoutRecordList">
+                    <div class="loading">미응답 기록을 불러오는 중...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Detail Modal -->
@@ -1184,8 +1221,8 @@
                     
                     if (targetId === 'notifications') {
                         loadNotifications();
-                    } else if (targetId === 'outages') {
-                        loadOutages();
+                    } else if (targetId === 'timeout-records') {
+                        loadTimeoutRecords();
                     }
                 });
             });
@@ -1811,6 +1848,127 @@
                 <div class="empty-state">
                     <div class="empty-icon">📭</div>
                     <div>아직 알림 기록이 없습니다.</div>
+                </div>
+            `;
+        }
+
+        // ============================================================================
+        // Timeout Records (미응답 기록) Functions
+        // ============================================================================
+        
+        let allTimeoutRecords = [];
+        let currentTimeoutFilter = 'all';
+        let timeoutFilterInitialized = false;
+
+        // Load Timeout Records
+        async function loadTimeoutRecords() {
+            try {
+                const response = await fetch('/data/notification_log.json?t=' + Date.now());
+                if (!response.ok) {
+                    showEmptyTimeoutRecords();
+                    return;
+                }
+                
+                const logs = await response.json();
+                // timeout 타입만 필터링
+                allTimeoutRecords = logs.filter(n => n.type === 'timeout').reverse();
+                
+                updateTimeoutStats();
+                renderTimeoutRecords();
+                
+                // 필터 버튼 초기화 (한 번만)
+                if (!timeoutFilterInitialized) {
+                    initTimeoutFilterButtons();
+                    timeoutFilterInitialized = true;
+                }
+            } catch (error) {
+                console.error('미응답 기록 로드 실패:', error);
+                showEmptyTimeoutRecords();
+            }
+        }
+
+        // Initialize Timeout Filter Buttons
+        function initTimeoutFilterButtons() {
+            const filterButtons = document.querySelectorAll('[data-timeout-filter]');
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-timeout-filter]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentTimeoutFilter = btn.getAttribute('data-timeout-filter');
+                    renderTimeoutRecords();
+                });
+            });
+        }
+
+        // Update Timeout Stats
+        function updateTimeoutStats() {
+            const total = allTimeoutRecords.length;
+            const today = new Date().toISOString().split('T')[0];
+            const todayCount = allTimeoutRecords.filter(n => n.date === today).length;
+            
+            // 이번 주 계산
+            const now = new Date();
+            const weekStart = new Date(now);
+            weekStart.setDate(now.getDate() - now.getDay());
+            weekStart.setHours(0, 0, 0, 0);
+            const weekCount = allTimeoutRecords.filter(n => {
+                const d = new Date(n.date);
+                return d >= weekStart;
+            }).length;
+
+            document.getElementById('timeoutTotalCount').textContent = total;
+            document.getElementById('timeoutTodayCount').textContent = todayCount;
+            document.getElementById('timeoutWeekCount').textContent = weekCount;
+        }
+
+        // Render Timeout Records
+        function renderTimeoutRecords() {
+            const container = document.getElementById('timeoutRecordList');
+            if (!container) return;
+            
+            let filtered = allTimeoutRecords;
+            const today = new Date().toISOString().split('T')[0];
+            const now = new Date();
+            
+            if (currentTimeoutFilter === 'today') {
+                filtered = allTimeoutRecords.filter(n => n.date === today);
+            } else if (currentTimeoutFilter === 'week') {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay());
+                weekStart.setHours(0, 0, 0, 0);
+                filtered = allTimeoutRecords.filter(n => new Date(n.date) >= weekStart);
+            } else if (currentTimeoutFilter === 'month') {
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                filtered = allTimeoutRecords.filter(n => new Date(n.date) >= monthStart);
+            }
+
+            if (filtered.length === 0) {
+                showEmptyTimeoutRecords();
+                return;
+            }
+
+            container.innerHTML = filtered.map(notif => `
+                <div class="notification-item timeout">
+                    <div class="notification-header">
+                        <span class="notification-type timeout">
+                            ⚠️ 미응답
+                        </span>
+                        <span class="notification-time">${notif.date} ${notif.time}</span>
+                    </div>
+                    <div class="notification-name">${notif.name}</div>
+                    <div class="notification-ip">${notif.ip}</div>
+                </div>
+            `).join('');
+        }
+
+        // Show Empty Timeout Records
+        function showEmptyTimeoutRecords() {
+            const container = document.getElementById('timeoutRecordList');
+            if (!container) return;
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">✅</div>
+                    <div>미응답 기록이 없습니다.</div>
                 </div>
             `;
         }

@@ -1,5 +1,5 @@
 /**
- * Common Types and Constants (v2.7 Optimized)
+ * Common Types and Constants
  * Shared across all modules
  */
 
@@ -15,11 +15,11 @@
 // Constants
 // ============================================================================
 
-#define MAX_IP_COUNT 100 // 50 → 100 확장
-#define MAX_HISTORY 60   // 개별 IP 히스토리 (프론트엔드에서 24시간 관리)
+#define MAX_IP_COUNT 50
+#define MAX_HISTORY 60
 #define PING_TIMEOUT 2000
 
-// 파일 경로
+// ⭐ 수정: 새 폴더 구조 반영
 #define JSON_FILE L"..\\..\\data\\ping_data.json"
 #define CONFIG_FILE L"..\\..\\config\\ping_config.ini"
 #define INT_CONFIG_FILE L"..\\..\\config\\int_config.ini"
@@ -56,19 +56,6 @@
 #define DEFAULT_CONSECUTIVE_FAILURES 3
 
 // ============================================================================
-// v2.7 최적화 관련 상수
-// ============================================================================
-
-// JSON 버퍼 크기 (2MB)
-#define JSON_BUFFER_SIZE (2 * 1024 * 1024)
-
-// Memory Mapped File 크기 (1MB)
-#define MMAP_FILE_SIZE (1 * 1024 * 1024)
-
-// ICMP Reply 버퍼 크기
-#define ICMP_REPLY_BUFFER_SIZE 256
-
-// ============================================================================
 // Structures
 // ============================================================================
 
@@ -87,7 +74,7 @@ typedef struct
     int historyIndex;
 
     time_t lastNotificationTime;
-    int previousOnline;
+    int previousOnline; // -1=미설정, 0=오프라인, 1=온라인 (초기값 -1 필요)
     int consecutiveFailures;
     int consecutiveSuccesses;
 
@@ -127,4 +114,4 @@ extern DWORD g_browserStartTime;
 extern NotificationSettings g_notifSettings;
 extern CRITICAL_SECTION g_logLock;
 
-#endif // TYPES_H
+#endif
