@@ -3,34 +3,28 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ============================================
-echo   Ping 응답 확인 시각화 도구 v2.7 빌드
+echo   Ping Monitor v2.7 Build
 echo ============================================
 echo.
 
 :menu
-echo 메뉴를 선택하세요:
-echo   1. 컴파일 및 실행
-echo   2. 컴파일만
-echo   3. 디버그 모드 (콘솔 출력 + 로그 파일)
-echo   4. 배포 패키지 생성
-echo   5. 종료
+echo Select menu:
+echo   1. Compile
+echo   2. Debug mode (console output + log file)
+echo   3. Run
+echo   4. Create release package
+echo   5. Clear screen
+echo   6. Exit
 echo.
-set /p choice="선택 (1-5): "
+set /p choice="Select (1-6): "
 
-if "%choice%"=="1" goto compile_run
-if "%choice%"=="2" goto compile_only
-if "%choice%"=="3" goto debug_mode
+if "%choice%"=="1" goto compile_only
+if "%choice%"=="2" goto debug_mode
+if "%choice%"=="3" goto run_only
 if "%choice%"=="4" goto create_release
-if "%choice%"=="5" goto end
-echo 잘못된 선택입니다.
-goto menu
-
-:compile_run
-call :do_compile
-if %errorlevel% neq 0 goto menu
-echo.
-echo 프로그램을 실행합니다...
-start "" ping_monitor.exe
+if "%choice%"=="5" goto clear_screen
+if "%choice%"=="6" goto end
+echo Invalid selection.
 goto menu
 
 :compile_only
@@ -39,7 +33,7 @@ goto menu
 
 :debug_mode
 echo.
-echo 디버그 모드로 컴파일 중...
+echo Compiling in debug mode...
 cd main
 gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -DDEBUG
 gcc -c module\config.c -o module_config.o -DDEBUG
@@ -63,7 +57,7 @@ gcc -o ping_monitor.exe ^
     -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
 
 if %errorlevel% neq 0 (
-    echo 컴파일 실패!
+    echo Compile failed!
     cd ..
     goto menu
 )
@@ -72,59 +66,78 @@ move ping_monitor.exe .. >nul
 del *.o >nul 2>&1
 cd ..
 
-echo 디버그 모드 컴파일 완료!
-echo 콘솔 창이 표시되며 로그가 출력됩니다.
+echo Debug mode compile complete!
+echo Console window will be displayed with log output.
 start "" ping_monitor.exe
+goto menu
+
+:run_only
+echo.
+if exist ping_monitor.exe (
+    echo Starting program...
+    start "" ping_monitor.exe
+) else (
+    echo [Error] ping_monitor.exe not found. Please compile first.
+)
+echo.
+goto menu
+
+:clear_screen
+cls
+echo ============================================
+echo   Ping Monitor v2.7 Build
+echo ============================================
+echo.
 goto menu
 
 :do_compile
 echo.
-echo 컴파일 중...
+echo Compiling...
 cd main
 
 gcc -c ping_monitor_webview.c -o ping_monitor_webview.o -municode -mwindows
 if %errorlevel% neq 0 (
-    echo ping_monitor_webview.c 컴파일 실패!
+    echo ping_monitor_webview.c compile failed!
     cd ..
     exit /b 1
 )
 
 gcc -c module\config.c -o module_config.o
 if %errorlevel% neq 0 (
-    echo config.c 컴파일 실패!
+    echo config.c compile failed!
     cd ..
     exit /b 1
 )
 
 gcc -c module\network.c -o module_network.o
 if %errorlevel% neq 0 (
-    echo network.c 컴파일 실패!
+    echo network.c compile failed!
     cd ..
     exit /b 1
 )
 
 gcc -c module\notification.c -o module_notification.o
 if %errorlevel% neq 0 (
-    echo notification.c 컴파일 실패!
+    echo notification.c compile failed!
     cd ..
     exit /b 1
 )
 
 gcc -c module\port.c -o module_port.o
 if %errorlevel% neq 0 (
-    echo port.c 컴파일 실패!
+    echo port.c compile failed!
     cd ..
     exit /b 1
 )
 
 gcc -c outage.c -o outage.o
 if %errorlevel% neq 0 (
-    echo outage.c 컴파일 실패!
+    echo outage.c compile failed!
     cd ..
     exit /b 1
 )
 
-echo 링킹 중...
+echo Linking...
 gcc -o ping_monitor.exe ^
     ping_monitor_webview.o ^
     module_config.o ^
@@ -140,7 +153,7 @@ gcc -o ping_monitor.exe ^
     -lws2_32 -liphlpapi -lshlwapi -lshell32 -lole32 -loleaut32 -luuid -lgdi32
 
 if %errorlevel% neq 0 (
-    echo 링킹 실패!
+    echo Linking failed!
     cd ..
     exit /b 1
 )
@@ -151,31 +164,31 @@ cd ..
 
 echo.
 echo ============================================
-echo   컴파일 성공!
+echo   Compile successful!
 echo ============================================
 exit /b 0
 
 :create_release
 echo.
 echo ============================================
-echo   배포 패키지 생성 v2.7
+echo   Create Release Package v2.7
 echo ============================================
 echo.
 
 set RELEASE_DIR=PingMonitor_v2.7_Release
 
-:: 기존 폴더 및 압축 파일 삭제
+:: Delete existing folder and zip file
 if exist %RELEASE_DIR% (
-    echo 기존 배포 폴더 삭제 중...
+    echo Deleting existing release folder...
     rmdir /s /q %RELEASE_DIR%
 )
 if exist %RELEASE_DIR%.zip (
-    echo 기존 압축 파일 삭제 중...
+    echo Deleting existing zip file...
     del /f /q %RELEASE_DIR%.zip
 )
 
-:: 폴더 구조 생성
-echo 폴더 구조 생성 중...
+:: Create folder structure
+echo Creating folder structure...
 mkdir %RELEASE_DIR%
 mkdir %RELEASE_DIR%\config
 mkdir %RELEASE_DIR%\data
@@ -183,30 +196,31 @@ mkdir %RELEASE_DIR%\web
 mkdir %RELEASE_DIR%\web\css
 mkdir %RELEASE_DIR%\web\config
 mkdir %RELEASE_DIR%\web\section-ip
+mkdir %RELEASE_DIR%\web\minwin-ip
 
-:: 실행 파일 복사
-echo 실행 파일 복사 중...
+:: Copy executable
+echo Copying executable...
 if exist ping_monitor.exe (
     copy ping_monitor.exe %RELEASE_DIR%\ >nul
 ) else (
-    echo [경고] ping_monitor.exe가 없습니다. 먼저 컴파일하세요.
+    echo [Warning] ping_monitor.exe not found. Please compile first.
 )
 
-:: 설정 파일 복사
-echo 설정 파일 복사 중...
+:: Copy config files
+echo Copying config files...
 if exist config\ping_config.ini copy config\ping_config.ini %RELEASE_DIR%\config\ >nul
 if exist config\int_config.ini copy config\int_config.ini %RELEASE_DIR%\config\ >nul
 
-:: data 폴더에 .gitkeep 생성
+:: Create .gitkeep in data folder
 echo. > %RELEASE_DIR%\data\.gitkeep
 
-:: 웹 파일 복사
-echo 웹 파일 복사 중...
+:: Copy web files
+echo Copying web files...
 if exist web\graph.html copy web\graph.html %RELEASE_DIR%\web\ >nul
 if exist web\chart.umd.min.js copy web\chart.umd.min.js %RELEASE_DIR%\web\ >nul
 
-:: CSS 파일 복사
-echo CSS 파일 복사 중...
+:: Copy CSS files
+echo Copying CSS files...
 if exist web\css\variables.css copy web\css\variables.css %RELEASE_DIR%\web\css\ >nul
 if exist web\css\base.css copy web\css\base.css %RELEASE_DIR%\web\css\ >nul
 if exist web\css\components.css copy web\css\components.css %RELEASE_DIR%\web\css\ >nul
@@ -216,34 +230,40 @@ if exist web\css\outages.css copy web\css\outages.css %RELEASE_DIR%\web\css\ >nu
 if exist web\css\settings.css copy web\css\settings.css %RELEASE_DIR%\web\css\ >nul
 if exist web\css\responsive.css copy web\css\responsive.css %RELEASE_DIR%\web\css\ >nul
 
-:: web/config 파일 복사 (v2.7 신규)
-echo web/config 파일 복사 중...
+:: Copy web/config files
+echo Copying web/config files...
 if exist web\config\settings.css copy web\config\settings.css %RELEASE_DIR%\web\config\ >nul
 if exist web\config\settings.js copy web\config\settings.js %RELEASE_DIR%\web\config\ >nul
 
-:: web/section-ip 파일 복사 (v2.7 신규)
-echo web/section-ip 파일 복사 중...
+:: Copy web/section-ip files
+echo Copying web/section-ip files...
 if exist web\section-ip\timeline.css copy web\section-ip\timeline.css %RELEASE_DIR%\web\section-ip\ >nul
 if exist web\section-ip\timeline.js copy web\section-ip\timeline.js %RELEASE_DIR%\web\section-ip\ >nul
 if exist web\section-ip\timeline.html copy web\section-ip\timeline.html %RELEASE_DIR%\web\section-ip\ >nul
 
-:: 압축 파일 생성 (PowerShell 사용)
+:: Copy web/minwin-ip files
+echo Copying web/minwin-ip files...
+if exist web\minwin-ip\minwin-ip.css copy web\minwin-ip\minwin-ip.css %RELEASE_DIR%\web\minwin-ip\ >nul
+if exist web\minwin-ip\minwin-ip.js copy web\minwin-ip\minwin-ip.js %RELEASE_DIR%\web\minwin-ip\ >nul
+if exist web\minwin-ip\minwin-ip.html copy web\minwin-ip\minwin-ip.html %RELEASE_DIR%\web\minwin-ip\ >nul
+
+:: Create zip file (using PowerShell)
 echo.
-echo 압축 파일 생성 중...
+echo Creating zip file...
 powershell -command "Compress-Archive -Path '%RELEASE_DIR%\*' -DestinationPath '%RELEASE_DIR%.zip' -Force"
 
 echo.
 echo ============================================
-echo   배포 패키지 생성 완료!
+echo   Release package created!
 echo ============================================
 echo.
-echo 생성된 파일:
-echo   - %RELEASE_DIR%\           (폴더)
-echo   - %RELEASE_DIR%.zip        (압축 파일)
+echo Generated files:
+echo   - %RELEASE_DIR%\           (folder)
+echo   - %RELEASE_DIR%.zip        (zip file)
 echo.
 goto menu
 
 :end
 echo.
-echo 프로그램을 종료합니다.
+echo Exiting program.
 exit /b 0
